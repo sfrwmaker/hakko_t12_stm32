@@ -4,8 +4,8 @@ AC6 - STM32 System Workbench & CubeMX software development tools have been used 
 https://sites.google.com/site/sfrwmaker/t12stm32
 Revision history
 22/10 2018
-  Eeprom size error fixed
-  New schema of saving tip data to the eeprom implemented.
-  Now only active tips are placed to the eeprom. It is possible to ad new tip to the tip list.
-  New calibration procedure implemented
-  Minor bug fixed
+  1. Eeprom size error fixed
+  2. New schema of saving tip data to the eeprom implemented.
+  3. Now only active tips are placed to the eeprom. It is possible to ad new tip to the tip list.
+  4. New calibration procedure implemented
+  5. Minor bug fixed
