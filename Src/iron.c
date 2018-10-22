@@ -154,7 +154,7 @@ int32_t PID_change(uint8_t p, int32_t k) {
 static int32_t PID_requiredPower(int16_t temp_set, int16_t temp_curr) {
 	if (pid.temp_h0 == 0) {
 		// When the temperature is near the preset one, reset the PID and prepare iterative formulae
-		if ((temp_set - temp_curr) < 120) {
+		if ((temp_set - temp_curr) < 30) {
 			if (!pid.pid_iterate) {
 				pid.pid_iterate = true;
 				pid.power 		= 0;
@@ -186,7 +186,7 @@ static struct s_IRON {
 	uint32_t	disp_power_summ;						// Exponential average summary for the dispersion of supplied power
 	uint16_t	disp_power;								// The dispersion of the supplied power
 	uint16_t	average_power;							// The average power supplied
-	uint16_t 	temp_set;								// The temperature that should be kept
+	uint16_t 	temp_set;								// The temperature that should be kept (internal units)
 	uint16_t    fix_power;								// If non-zero: the fixed value power supplied to the iron
 	bool 	 	on;										// Whether the soldering IRON is on
 	bool		chill;									// Whether the IRON should be cooled (preset temp is lower than current)
@@ -219,15 +219,16 @@ void 	IRON_init(ADC_HandleTypeDef* hadc, TIM_HandleTypeDef* pwm_timer, TIM_Handl
 	HAL_TIM_OC_Start_IT(check_timer, TIM_CHANNEL_4);
 }
 
+// Setup the iron temperature to be kept (internal units)
 void	IRON_setTemp(uint16_t t) {
 	if (iron.on) PID_reset(temp);
-	if (t > temp_max) t = temp_max;						// Do not allow overheating
+	if (t > temp_max) t = temp_max;						// Do not allow over heating
 	iron.temp_set = t;
 	iron.chill = (temp > t + 20);                		// The IRON must be cooled
 }
 
-void		IRON_adjust(uint16_t t) {
-	if (t > temp_max) t = temp_max;						// Do not allow overheating
+void	IRON_adjust(uint16_t t) {
+	if (t > temp_max) t = temp_max;						// Do not allow over heating
 	iron.temp_set = t;
 }
 
@@ -258,7 +259,7 @@ bool	IRON_isON(void) {
 
 static uint16_t IRON_power(uint32_t t) {
 	int32_t p = 0;
-	if ((t >= temp_max + 100) || (t > (iron.temp_set + 400))) {	// Prevent global overheating
+	if ((t >= temp_max + 100) || (t > (iron.temp_set + 400))) {	// Prevent global over heating
 		if (iron.on) iron.chill = true;					// Turn off the power in main working mode only; Not used in the case of fixed power
 	}
 	if (iron.on) {										// The main working mode

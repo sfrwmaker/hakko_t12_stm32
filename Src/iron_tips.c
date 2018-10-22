@@ -1,5 +1,6 @@
 #include "iron_tips.h"
 #include "eeprom.h"
+#include "string.h"
 
 static char tip_names[][tip_name_sz] = {
 		{'B', '\0', '\0', '\0', '\0'},
@@ -54,6 +55,7 @@ static char tip_names[][tip_name_sz] = {
 		{'K',  'R', '\0', '\0', '\0'},
 		{'K',  'F',  'Z', '\0', '\0'},
 		{'K',  'R',  'Z', '\0', '\0'},
+		{'K',  'U', '\0', '\0', '\0'},		// Tip added 09/12/2018
 		{'W',  'B',  '2', '\0', '\0'},
 		{'W',  'D',  '0',  '8', '\0'},
 		{'W',  'D',  '1',  '2', '\0'},
@@ -104,6 +106,14 @@ const char* TIPS_name(uint8_t index) {
 		return tip_names[index];
 	}
 	return 0;
+}
+
+int TIPS_index(const char *name) {
+	for (uint16_t i = 0; i < tip_number; ++i) {
+		if (strncmp(name, tip_names[i], tip_name_sz) == 0)
+			return i;
+	}
+	return -1;
 }
 
 

@@ -6,6 +6,7 @@
 #include "tools.h"
 #include "buzz.h"
 #include "iron_tips.h"
+#include <math.h>
 
 static 	uint32_t	time_to_return 	= 0;				// Time in ms when to return to the main mode
 static	uint32_t	update_screen;						// Time in ms when the screen should be updated
@@ -31,10 +32,12 @@ static void 	MFAIL_init(void);
 static MODE* 	MFAIL_loop(void);
 static void 	MTACT_init(void);
 static MODE* 	MTACT_loop(void);
+static void 	MCMNU_init(void);
+static MODE* 	MCMNU_loop(void);
 static void 	MCALB_init(void);
 static MODE* 	MCALB_loop(void);
-static void 	MINIT_init(void);
-static MODE* 	MINIT_loop(void);
+static void 	MCLBM_init(void);
+static MODE* 	MCLBM_loop(void);
 static void 	MTPID_init(void);
 static MODE* 	MTPID_loop(void);
 
@@ -79,9 +82,19 @@ static MODE mode_fail = {
 	.loop			= MFAIL_loop
 };
 
+static MODE mode_calibrate_menu = {
+	.init			= MCMNU_init,
+	.loop			= MCMNU_loop
+};
+
 static MODE mode_calibrate_tip = {
 	.init			= MCALB_init,
 	.loop			= MCALB_loop
+};
+
+static MODE mode_calibrate_tip_manual = {
+	.init			= MCLBM_init,
+	.loop			= MCLBM_loop
 };
 
 static MODE mode_activate_tips = {
@@ -89,26 +102,20 @@ static MODE mode_activate_tips = {
 	.loop			= MTACT_loop
 };
 
-static MODE mode_init_eeprom = {
-	.init			= MINIT_init,
-	.loop			= MINIT_loop
-};
-
 static MODE mode_tune_pid = {
 	.init			= MTPID_init,
 	.loop			= MTPID_loop
 };
 
+// ****** The Starting point of the whole controller *******
 MODE*	MODE_init(u8g_t* pU8g, RENC* Encoder, I2C_HandleTypeDef* pHi2c) {
 	u8g 				= pU8g;
 	rEnc				= Encoder;
 	D_init(u8g);
-	if (CFG_init(pHi2c)) {								// The configuration and the tip info have been loaded correctly
-		return &mode_standby;
-	} else {
-		BUZZ_failedBeep();
-		return &mode_init_eeprom;
-	}
+	if (CFG_init(pHi2c))
+		return &mode_standby;							// The configuration and the tip info have been loaded correctly
+	else
+		return &mode_activate_tips;						// No tip configured, run tip activation menu
 }
 
 //---------------------- The standby mode ----------------------------------------
@@ -226,6 +233,7 @@ static void 	MWORK_init(void) {
 	mode_work_data.emp_k				= 5;
 	mode_work_data.off_timeout			= CFG_getOffTimeout() * 60;
 	time_to_return						= 0;
+	update_screen						= 0;
 }
 
 static void		MWORK_adjustPresetTemp(uint16_t presetTemp) {
@@ -275,7 +283,7 @@ static MODE* 	MWORK_loop(void) {
     	return &mode_standby;
     }
 
-    update_screen = HAL_GetTick() + 1000;
+    update_screen = HAL_GetTick() + 500;
 
     int temp		= IRON_avgTemp();
 	int temp_set	= IRON_getTemp();					// Now the preset temperature in internal units!!!
@@ -480,7 +488,7 @@ static MODE*	MSLCT_loop(void) {
 //---------------------- The Activate tip mode: select tips to use ---------------
 static void 	MTACT_init(void) {
 	uint8_t tip_index = CFG_currentTipIndex();
-	RENC_resetEncoder(rEnc, tip_index, 0, TIPS_LOADED()-1, 1, 3, false);
+	RENC_resetEncoder(rEnc, tip_index, 0, TIPS_LOADED()-1, 1, 2, false);
 	update_screen = 0;
 }
 
@@ -511,82 +519,205 @@ static MODE* 	MTACT_loop(void) {
 	return &mode_activate_tips;
 }
 
-//---------------------- The calibrate tip mode: setup temperature ---------------
-static struct {
-	uint8_t		ref_temp_index;							// Which temperature reference to change: [0-3]
-	uint16_t	calib_temp[2][5];						// The calibration data: real temp. [0] and temp. in internal units [1] (index 0 - is for ambient temperature)
-	bool		ready;									// Whether the temperature has been established
-	bool		tuning;									// Whether the reference temperature is modifying (else we select new reference point)
-} mode_calibrate_data;
+//---------------------- Calibrate tip menu --------------------------------------
+static char* menu_tip[] = {
+		"automatic",
+		"manual",
+		"clear",
+		"exit"
+};
 
-static void 	MCALB_init(void) {
-	RENC_resetEncoder(rEnc, 3, 0, 3, 1, 1, true);		// 0 - temp_tip[0], 1 - temp_tip[1], ... (temp_tip is global array)
-	CFG_referenceTemp(mode_calibrate_data.calib_temp[0]);
-	CFG_resetTipCalibration();							// Load default tip calibration
-	CFG_getTipCalibtarion(mode_calibrate_data.calib_temp[1]);
-	mode_calibrate_data.ref_temp_index 	= 0;
-	mode_calibrate_data.ready			= false;
-	mode_calibrate_data.tuning			= false;
-	mode_calibrate_data.ref_temp_index 	= 0;
+static void 	MCMNU_init(void) {
+	RENC_resetEncoder(rEnc, 0, 0, 3, 1, 1, true);
 	update_screen = 0;
 }
 
-static void MCALB_buildCalibration(uint16_t* tip, uint8_t ref_point) {
-	int ambient = IRON_ambient();
-	if (ambient < 0) ambient = 0;
-	uint16_t temp_tip[4];
-	CFG_referenceTemp(temp_tip);						// Load reference temperature points
-	for (uint8_t i = 1; i <= 3; ++i) {
-	  tip[i]  = map(temp_tip[i], mode_calibrate_data.calib_temp[0][i-1],	mode_calibrate_data.calib_temp[0][i],
-			  	  	  	  	  	 mode_calibrate_data.calib_temp[1][i-1],	mode_calibrate_data.calib_temp[1][i]);
-	  tip[i] += map(temp_tip[i], ambient, 	mode_calibrate_data.calib_temp[0][i],
-			  	  	  	  	  	 0, 		mode_calibrate_data.calib_temp[1][i]);
-	  tip[i] >>= 1;										// half of the summ, the average value
+static MODE* 	MCMNU_loop(void) {
+	static uint8_t  old_item = 4;
+	uint8_t item 		= RENC_read(rEnc);
+	uint8_t button		= RENC_intButtonStatus(rEnc);
+
+	if (button == 1) {
+		update_screen = 0;									// Force to redraw the screen
+	} else if (button == 2) {								// The button was pressed for a long time
+	   	return &mode_standby;
 	}
-	tip[0]    = map(temp_tip[0], mode_calibrate_data.calib_temp[0][0], mode_calibrate_data.calib_temp[0][1],
-		  	  	  	  	  	   	 mode_calibrate_data.calib_temp[1][0], mode_calibrate_data.calib_temp[1][1]);
-	tip[0]   += map(temp_tip[0], ambient, 	mode_calibrate_data.calib_temp[0][2],
-		  	  	  	  	  	   	 0, 		mode_calibrate_data.calib_temp[1][2]);
-	tip[0] >>= 1;										// half of the summ, the average value
-	if (tip[3] > temp_max) tip[3] = temp_max;			// temp_max is a maximum possible temperature (global define)
 
-	/*
-	 * Make sure the tip[0] < tip[1] < tip[2] < tip[3]; And the difference beetween next points is greater than req_diff
-	 * Shift right calibration point higher and left calibration point lower
-	 */
-	const uint16_t req_diff = 200;
-	if (ref_point <= 3) {								// tip[0-3] - internal temperature readings for the tip at reference points (200-400)
-		for (uint8_t i = ref_point; i < 2; ++i) {		// ref_point is 0 for 200 degrees and 3 for 400 degrees
-			int diff = (int)tip[i+1] - (int)tip[i];
-			if (diff < req_diff) {
-				tip[i+1] = tip[i] + req_diff;
-			}
-		}
-		if (tip[3] > temp_max) {						// The high temperature limit is exeeded, temp_max. Lower all calibtration
-			tip[3] = temp_max;
-			for (int8_t i = 2; i >= ref_point; --i) {
-				int diff = (int)tip[i+1] - (int)tip[i];
-				if (diff < req_diff) {
-					int t = (int)tip[i+1] - req_diff;
-					if (t < 0) t = 0;
-					tip[i] = t;
-				}
-			}
-		}
+	if (old_item != item) {
+		old_item = item;
+		update_screen = 0;									// Force to redraw the screen
+	}
 
-		for (uint8_t i = ref_point; i > 0; --i) {
-			int diff = (int)tip[i] - (int)tip[i-1];
-			if (diff < req_diff) {
-				int t = (int)tip[i] - req_diff;
-				if (t < 0) t = 0;
-				tip[i-1] = t;
-			}
+	if (HAL_GetTick() < update_screen)
+		return &mode_calibrate_menu;
+	update_screen = HAL_GetTick() + 10000;
+
+	if (button == 1) {										// The button was pressed
+		switch (item) {
+			case 0:											// Calibrate tip automatically
+				return &mode_calibrate_tip;
+			case 1:											// Calibrate tip manually
+				return &mode_calibrate_tip_manual;
+			case 2:											// Initialize tip calibration data
+				CFG_resetTipCalibration();
+				return &mode_standby;
+			default:										// exit
+				return &mode_standby;
 		}
+	}
+
+	DISPL_showMenuItem("Calibrate", menu_tip[item], 0, false);
+
+	return &mode_calibrate_menu;
+}
+
+//---------------------- The calibrate tip mode: setup temperature ---------------
+/*
+ * There are 4 calibration points in the controller, but during calibration procedure we will use more points to cover whole
+ * set of the internal temperature values.
+ */
+#define MCALB_POINTS	8
+static struct {
+	uint8_t		ref_temp_index;							// Which temperature reference to change: [0-MCALB_POINTS]
+	uint16_t	calib_temp[2][MCALB_POINTS];			// The calibration data: real temp. [0] and temp. in internal units [1]
+	uint16_t	tip_temp_max;							// the maximum possible tip temperature in the internal units
+	bool		ready;									// Whether the temperature has been established
+	bool		tuning;
+} mode_calibrate_data;
+
+static void 	MCALB_init(void) {
+	// Prepare to enter real temperature
+	uint16_t min_t 		= 50;
+	uint16_t max_t		= 600;
+	uint16_t start_t	= 200;
+	if (!CFG_isCelsius()) {
+		min_t 	=  122;
+		max_t 	= 1111;
+		start_t	= 400;
+	}
+	RENC_resetEncoder(rEnc, start_t, min_t, max_t, 1, 5, false);
+
+	// Initialize the calibration array
+	for (uint8_t i = 0; i < MCALB_POINTS; ++i) {
+		mode_calibrate_data.calib_temp[0][i] = 0;		// Real temperature. 0 means not entered yet
+		mode_calibrate_data.calib_temp[1][i] = map(i, 0, MCALB_POINTS-1, 200, temp_max / 2);
+	}
+	mode_calibrate_data.tip_temp_max 	= temp_max / 2;		// The maximum possible temperature defined in iron.h
+	mode_calibrate_data.ref_temp_index 	= 0;
+	mode_calibrate_data.ready			= false;
+	mode_calibrate_data.tuning			= false;
+	update_screen = 0;
+}
+
+/*
+ * Calculate tip calibration parameter using linear approximation by Ordinary Least Squares method
+ * Y = a * X + b, where
+ * Y - internal temperature, X - real temperature. a and b are double coefficients
+ * a = (N * sum(Xi*Yi) - sum(Xi) * sum(Yi)) / ( N * sum(Xi^2) - (sum(Xi))^2)
+ * b = 1/N * (sum(Yi) - a * sum(Xi))
+ */
+static bool MCALB_OLS(uint16_t* tip, uint16_t min_temp, uint16_t max_temp) {
+	long sum_XY = 0;									// sum(Xi * Yi)
+	long sum_X 	= 0;									// sum(Xi)
+	long sum_Y  = 0;									// sum(Yi)
+	long sum_X2 = 0;									// sum(Xi^2)
+	long N		= 0;
+
+	for (uint8_t i = 0; i < MCALB_POINTS; ++i) {
+		uint16_t X 	= mode_calibrate_data.calib_temp[0][i];
+		uint16_t Y	= mode_calibrate_data.calib_temp[1][i];
+		if (X >= min_temp && X <= max_temp) {
+			sum_XY 	+= X * Y;
+			sum_X	+= X;
+			sum_Y   += Y;
+			sum_X2  += X * X;
+			++N;
+		}
+	}
+
+	if (N <= 2)											// Not enough real temperatures have been entered
+		return false;
+
+	double	a  = (double)N * (double)sum_XY - (double)sum_X * (double)sum_Y;
+			a /= (double)N * (double)sum_X2 - (double)sum_X * (double)sum_X;
+	double 	b  = (double)sum_Y - a * (double)sum_X;
+			b /= (double)N;
+
+	uint16_t ref_temp[4];
+    CFG_referenceTemp(ref_temp);
+	for (uint8_t i = 0; i < 4; ++i) {
+		double temp = a * (double)ref_temp[i] + b;
+		tip[i] = round(temp);
+	}
+	if (tip[3] > temp_max) tip[3] = temp_max;			// Maximal possible temperature (iron.h)
+	return true;
+}
+
+// Find the index of the reference point with the closest temperature
+static uint8_t closestIndex(uint16_t temp) {
+	uint16_t diff = 1000;
+	uint8_t index = MCALB_POINTS;
+	for (uint8_t i = 0; i < MCALB_POINTS; ++i) {
+		uint16_t X = mode_calibrate_data.calib_temp[0][i];
+		if (X > 0 && abs(X-temp) < diff) {
+			diff = abs(X-temp);
+			index = i;
+		}
+	}
+	return index;
+}
+
+static void MCALB_updateReference(uint8_t indx) {		// Update reference points
+	uint16_t expected_temp 	= map(indx, 0, MCALB_POINTS, temp_minC, temp_maxC);
+	uint16_t r_temp			= mode_calibrate_data.calib_temp[0][indx];
+	uint16_t tip_temp_max 	= mode_calibrate_data.tip_temp_max;
+	if (indx < 5 && r_temp > (expected_temp + expected_temp/4)) {	// The real temperature is too high
+		tip_temp_max -= tip_temp_max >> 2;				// tip_temp_max *= 0.75;
+		if (tip_temp_max < temp_max / 4)
+			tip_temp_max = temp_max / 4;				// Limit minimum possible value of the highest temperature
+
+	} else if (r_temp > (expected_temp + expected_temp/8)) { // The real temperature is lower than expected
+		tip_temp_max += tip_temp_max >> 3;				// tip_temp_max *= 1.125;
+		if (tip_temp_max > temp_max)
+			tip_temp_max = temp_max;
+	} else if (indx < 5 && r_temp < (expected_temp - expected_temp/4)) { // The real temperature is too low
+		tip_temp_max += tip_temp_max >> 2;				// tip_temp_max *= 1.25;
+		if (tip_temp_max > temp_max)
+			tip_temp_max = temp_max;
+	} else if (r_temp < (expected_temp - expected_temp/8)) { // The real temperature is lower than expected
+		tip_temp_max += tip_temp_max >> 3;				// tip_temp_max *= 1.125;
+		if (tip_temp_max > temp_max)
+			tip_temp_max = temp_max;
+	} else {
+		return;
+	}
+
+	// rebuild the array of the reference temperatures
+	for (uint8_t i = indx+1; i < MCALB_POINTS; ++i) {
+		mode_calibrate_data.calib_temp[1][i] = map(i, 0, MCALB_POINTS-1, 200, tip_temp_max);
+	}
+	mode_calibrate_data.tip_temp_max = tip_temp_max;
+}
+
+
+static void MCALB_buildFinishCalibration(void) {
+	uint16_t tip[4];
+	uint16_t ref_temp[4];
+	CFG_referenceTemp(ref_temp);						// Reference temperature points: 200, 260, 330, 400
+	if (MCALB_OLS(tip, 150, ref_temp[2])) {
+		uint8_t near_index	= closestIndex(ref_temp[3]);
+		tip[3] = map(ref_temp[3], ref_temp[2], mode_calibrate_data.calib_temp[0][near_index],
+				tip[2], mode_calibrate_data.calib_temp[1][near_index]);
+		if (tip[3] > temp_max) tip[3] = temp_max;		// Maximal possible temperature (iron.h)
+
+		uint8_t tip_index 	= CFG_currentTipIndex();
+		int16_t ambient 	= IRON_ambient();
+		CFG_applyTipCalibtarion(tip, ambient);
+		CFG_saveTipCalibtarion(tip_index, tip, TIP_ACTIVE | TIP_CALIBRATED, ambient);
 	}
 }
 
 static MODE* 	MCALB_loop(void) {
-	static const int16_t t_diff = 60;					// The maximum possible temperature deviation (Celsius)
 	static int16_t	old_encoder = 3;
 
 	uint16_t encoder	= RENC_read(rEnc);
@@ -611,78 +742,223 @@ static MODE* 	MCALB_loop(void) {
 			    uint8_t ref = mode_calibrate_data.ref_temp_index;
 			    mode_calibrate_data.calib_temp[0][ref] = r_temp;
 			    mode_calibrate_data.calib_temp[1][ref] = temp;
-			    uint16_t tip[4];
-			    MCALB_buildCalibration(tip, ref);		// ref is 0 for 200 degrees and 3 for 400 degrees
-			    CFG_applyTipCalibtarion(tip, IRON_ambient());
+			    if (r_temp < temp_maxC - 20) {
+			    	MCALB_updateReference(mode_calibrate_data.ref_temp_index);
+			    	++mode_calibrate_data.ref_temp_index;
+			    	// Try to update the current tip calibration
+			    	uint16_t tip[4];
+			    	 if (MCALB_OLS(tip, 150, 600))
+			    		 CFG_applyTipCalibtarion(tip, IRON_ambient());
+			    } else {								// Finish calibration
+			    	mode_calibrate_data.ref_temp_index = MCALB_POINTS;
+			    }
+		    } else {									// Stop heating, return from tuning mode
+		    	mode_calibrate_data.tuning = false;
+		    	update_screen = 0;
+		    	return &mode_calibrate_tip;
 		    }
-			mode_calibrate_data.tuning = false;
-			encoder = mode_calibrate_data.ref_temp_index;
-		    RENC_resetEncoder(rEnc, encoder, 0, 3, 1, 1, true);
-		} else {										// Reference temperature was selected from the list
-			mode_calibrate_data.ref_temp_index = encoder;
-			mode_calibrate_data.tuning = true;
-			uint16_t ref_temp[4];
-			CFG_referenceTemp(ref_temp);
-			uint16_t tempH 	= ref_temp[encoder];
-			uint16_t min_t 	= tempH - t_diff;
-			uint16_t max_t 	= tempH + t_diff;
-			if (!CFG_isCelsius()) {						// Fahrenheit/Celsius = 9/5 is about 1/2
-				min_t -= t_diff;
-				max_t += t_diff;
+		    mode_calibrate_data.tuning = false;
+		}
+		if (!mode_calibrate_data.tuning) {
+			if (mode_calibrate_data.ref_temp_index < MCALB_POINTS) {
+				mode_calibrate_data.tuning = true;
+				uint16_t temp = mode_calibrate_data.calib_temp[1][mode_calibrate_data.ref_temp_index];
+				IRON_setTemp(temp);
+				IRON_switchPower(true);
+			} else {									// All reference points are entered
+				MCALB_buildFinishCalibration();
+				return &mode_standby;
 			}
-			RENC_resetEncoder(rEnc, tempH, min_t, max_t, 1, 5, false);
-			uint16_t temp = CFG_human2temp(tempH, IRON_ambient());
-			IRON_setTemp(temp);
-			IRON_switchPower(true);
 		}
 		update_screen = 0;
-	} else if (button == 2) {							// The button was pressed for a long time, save tip calibration
-		uint16_t tip[4];
-		MCALB_buildCalibration(tip, 10);				// 10 is bihgger then the last index in the reference temp. Means buld final calibration
-		uint8_t tip_index = CFG_currentTipIndex();
-		int16_t ambient = IRON_ambient();
-		CFG_applyTipCalibtarion(tip, ambient);
-		CFG_saveTipCalibtarion(tip_index, tip, 3, ambient);
+	} else if (!mode_calibrate_data.tuning && button == 2) {	// The button was pressed for a long time, save tip calibration
+		MCALB_buildFinishCalibration();
 	    return &mode_standby;
 	}
 
 	if (HAL_GetTick() < update_screen) return &mode_calibrate_tip;
 	update_screen = HAL_GetTick() + 500;
 
-	uint16_t real_temp 	= 0;
-	if (mode_calibrate_data.tuning) {
-		real_temp 	= mode_calibrate_data.calib_temp[0][mode_calibrate_data.ref_temp_index];
-	} else {
-		real_temp 	= mode_calibrate_data.calib_temp[0][encoder];
-	}
+	uint16_t real_temp 	= encoder;
 	uint16_t temp_set	= IRON_getTemp();
 	uint16_t temp 		= IRON_avgTemp();
 	uint8_t  power		= IRON_appliedPwrPercent();
 	uint16_t tempH 		= CFG_tempHuman(temp, IRON_ambient());
 
-	if (mode_calibrate_data.tuning && (abs(temp_set - temp) < 10) && (IRON_dispersionOfPower() <= 100))  {
+	if (mode_calibrate_data.tuning && (abs(temp_set - temp) <= 16) && (IRON_dispersionOfPower() <= 200) && power > 1)  {
 		if (!mode_calibrate_data.ready) {
 			BUZZ_shortBeep();
+			RENC_write(rEnc, tempH);
 			mode_calibrate_data.ready = true;
 	    }
 	}
 
-	if (mode_calibrate_data.tuning)
-		real_temp = encoder;
-	uint8_t ref_temp_index = encoder;
-	if (mode_calibrate_data.tuning)
-		ref_temp_index	= mode_calibrate_data.ref_temp_index;
-	uint16_t ref_temp[4];
-	CFG_referenceTemp(ref_temp);
-	DISPL_showCalibration(CFG_tipName(), ref_temp[ref_temp_index], tempH, real_temp, CFG_isCelsius(),
+	// Calculate reference temperature, adjusted by 10 degrees
+	uint16_t ref_temp = map(mode_calibrate_data.ref_temp_index, 0, MCALB_POINTS, temp_minC, temp_maxC);
+	if (!CFG_isCelsius())								// Convert to the Fahrenheit if required
+		ref_temp = celsiusToFahrenheit(ref_temp);
+	ref_temp += 4;
+	ref_temp -= ref_temp % 10;
+
+	DISPL_showCalibration(CFG_tipName(), ref_temp, tempH, real_temp, CFG_isCelsius(),
 			power, mode_calibrate_data.tuning, mode_calibrate_data.ready);
 	return	&mode_calibrate_tip;
 }
 
+//---------------------- The calibrate tip mode: setup temperature ---------------
+static struct {
+	uint8_t		ref_temp_index;							// Which temperature reference to change: [0-3]
+	uint16_t	calib_temp[4];							// The calibration temp. in internal units in reference points
+	bool		ready;									// Whether the temperature has been established
+	bool		tuning;									// Whether the reference temperature is modifying (else we select new reference point)
+	uint32_t	temp_setready_ms;						// The time in ms when we should check the temperature is ready
+} mode_calib_manual;
+
+static void 	MCLBM_init(void) {
+	RENC_resetEncoder(rEnc, 0, 0, 3, 1, 1, true);		// 0 - temp_tip[0], 1 - temp_tip[1], ... (temp_tip is global array)
+	CFG_getTipCalibtarion(mode_calib_manual.calib_temp);
+	mode_calib_manual.ref_temp_index 	= 0;
+	mode_calib_manual.ready				= false;
+	mode_calib_manual.tuning			= false;
+	mode_calib_manual.temp_setready_ms	= 0;
+	update_screen = 0;
+}
+
+static void MCLBM_buildCalibration(uint16_t tip[], uint8_t ref_point) {
+	int ambient = IRON_ambient();
+	if (ambient < 0) ambient = 0;
+	if (tip[3] > temp_max) tip[3] = temp_max;			// temp_max is a maximum possible temperature (iron.h)
+
+	/*
+	 * Make sure the tip[0] < tip[1] < tip[2] < tip[3]; And the difference between next points is greater than req_diff
+	 * Shift right calibration point higher and left calibration point lower
+	 */
+	const int req_diff = 200;
+	if (ref_point <= 3) {								// tip[0-3] - internal temperature readings for the tip at reference points (200-400)
+		for (uint8_t i = ref_point; i <= 2; ++i) {		// ref_point is 0 for 200 degrees and 3 for 400 degrees
+			int diff = (int)tip[i+1] - (int)tip[i];
+			if (diff < req_diff) {
+				tip[i+1] = tip[i] + req_diff;
+			}
+		}
+		if (tip[3] > temp_max) {						// The high temperature limit is exceeded, temp_max. Lower all calibration
+			tip[3] = temp_max;
+			for (int8_t i = 2; i >= ref_point; --i) {
+				int diff = (int)tip[i+1] - (int)tip[i];
+				if (diff < req_diff) {
+					int t = (int)tip[i+1] - req_diff;
+					if (t < 0) t = 0;
+					tip[i] = t;
+				}
+			}
+		}
+
+		for (int8_t i = ref_point; i > 0; --i) {
+			int diff = (int)tip[i] - (int)tip[i-1];
+			if (diff < req_diff) {
+				int t = (int)tip[i] - req_diff;
+				if (t < 0) t = 0;
+				tip[i-1] = t;
+			}
+		}
+	}
+}
+
+static MODE* 	MCLBM_loop(void) {
+	static int16_t	old_encoder = 3;
+
+	uint16_t encoder	= RENC_read(rEnc);
+    uint8_t  button		= RENC_intButtonStatus(rEnc);
+
+    if (encoder != old_encoder) {
+    	old_encoder = encoder;
+    	if (mode_calib_manual.tuning) {
+    		IRON_setTemp(encoder);
+    		mode_calib_manual.ready = false;
+    		// Prevent beep just right the new temperature setup
+    		mode_calib_manual.temp_setready_ms = HAL_GetTick() + 5000;
+    	}
+    	update_screen = 0;
+    }
+
+	if (!IRON_connected())
+		return &mode_fail;
+	if (button == 1) {									// The button pressed
+		if (mode_calib_manual.tuning) {					// New reference temperature was confirmed
+			IRON_switchPower(false);
+		    if (mode_calib_manual.ready) {				// The temperature has been stabilized
+		    	mode_calib_manual.ready = false;
+			    uint16_t temp	= IRON_avgTemp();		// The temperature of the IRON in internal units
+			    uint8_t ref = mode_calib_manual.ref_temp_index;
+			    mode_calib_manual.calib_temp[ref] = temp;
+			    uint16_t tip[4];
+			    for (uint8_t i = 0; i < 4; ++i) {
+			    	tip[i] = mode_calib_manual.calib_temp[i];
+			    }
+			    MCLBM_buildCalibration(tip, ref);		// ref is 0 for 200 degrees and 3 for 400 degrees
+			    CFG_applyTipCalibtarion(tip, IRON_ambient());
+		    }
+		    mode_calib_manual.tuning = false;
+			encoder = mode_calib_manual.ref_temp_index;
+		    RENC_resetEncoder(rEnc, encoder, 0, 3, 1, 1, true);
+		} else {										// Reference temperature index was selected from the list
+			mode_calib_manual.ref_temp_index = encoder;
+			mode_calib_manual.tuning = true;
+			uint16_t ref_temp[4];
+			CFG_referenceTemp(ref_temp);
+			uint16_t tempH 	= ref_temp[encoder];
+			uint16_t temp 	= CFG_human2temp(tempH, IRON_ambient());
+			RENC_resetEncoder(rEnc, temp, 100, temp_max, 5, 20, false);	// temp_max declared in iron.h
+			IRON_setTemp(temp);
+			IRON_switchPower(true);
+		}
+		update_screen = 0;
+	} else if (button == 2) {							// The button was pressed for a long time, save tip calibration
+		MCLBM_buildCalibration(mode_calib_manual.calib_temp, 10); // 10 is bigger then the last index in the reference temp. Means build final calibration
+		uint8_t tip_index = CFG_currentTipIndex();
+		int16_t ambient = IRON_ambient();
+		CFG_applyTipCalibtarion(mode_calib_manual.calib_temp, ambient);
+		CFG_saveTipCalibtarion(tip_index, mode_calib_manual.calib_temp, TIP_ACTIVE | TIP_CALIBRATED, ambient);
+	    return &mode_standby;
+	}
+
+	uint8_t ref_temp_index = encoder;
+	if (mode_calib_manual.tuning) {
+		ref_temp_index	= mode_calib_manual.ref_temp_index;
+	}
+
+	if (HAL_GetTick() < update_screen) return &mode_calibrate_tip_manual;
+	update_screen = HAL_GetTick() + 500;
+
+	uint16_t temp_set	= IRON_getTemp();
+	uint16_t temp 		= IRON_avgTemp();
+	uint8_t  power		= IRON_appliedPwrPercent();
+
+	if (mode_calib_manual.tuning && (abs(temp_set - temp) <= 16) && (IRON_dispersionOfPower() <= 200) && power > 1)  {
+		if (!mode_calib_manual.ready && mode_calib_manual.temp_setready_ms && (HAL_GetTick() > mode_calib_manual.temp_setready_ms)) {
+			BUZZ_shortBeep();
+			mode_calib_manual.ready 			= true;
+			mode_calib_manual.temp_setready_ms	= 0;
+	    }
+	}
+
+	uint16_t ref_temp[4];
+	CFG_referenceTemp(ref_temp);
+	uint16_t temp_setup = temp_set;
+	if (!mode_calib_manual.tuning) {
+		uint16_t tempH 	= ref_temp[encoder];
+		temp_setup 		= CFG_human2temp(tempH, IRON_ambient());
+	}
+
+	DISPL_showCalibManual(CFG_tipName(), ref_temp[ref_temp_index], temp, temp_setup, CFG_isCelsius(),
+			power, mode_calib_manual.tuning, mode_calib_manual.ready);
+	return	&mode_calibrate_tip_manual;
+}
+
+
 //---------------------- The tune mode -------------------------------------------
+static const uint16_t max_power = 1000;
 static void 	MTUNE_init(void) {
-	uint16_t max_power = 1000;
-	DTUNE_init(max_power, true);
 	RENC_resetEncoder(rEnc, 300, 0, max_power, 1, 5, false);
 }
 
@@ -710,9 +986,7 @@ static MODE* 	MTUNE_loop(void) {
     }
     uint16_t temp 	= IRON_avgTemp();
     power 			= IRON_avgPower();
-    DTUNE_power(power);
-    DTUNE_intTemp(temp);
-    DTUNE_show();
+    DTUNE_show(temp, power, max_power, true);
     HAL_Delay(500);
     return &mode_tune;
 }
@@ -745,10 +1019,10 @@ static char* menu_name[] = {
 		"boost setup",
 		"save",
 		"cancel",
-		"calibrate",
+		"calibrate tip",
 		"activate tips",
 		"tune",
-		"init eeprom",
+		"reset config",
 		"Tune PID"
 };
 
@@ -768,6 +1042,8 @@ static void 	MMENU_init(void) {
 	mode_menu_data.celsius		= CFG_isCelsius();
 	mode_menu_data.set_timeout	= false;
 	mode_menu_data.m_len		= 11;						// The number of the items in the menu
+	if (!CFG_isTipCalibrated())
+		mode_menu_item			= 6;						// Select calibration menu item
 	RENC_resetEncoder(rEnc, mode_menu_item, 0, mode_menu_data.m_len-1, 1, 1, true);
 	update_screen = 0;
 }
@@ -776,12 +1052,9 @@ static MODE* 	MMENU_loop(void) {
 	uint8_t item 		= RENC_read(rEnc);
 	uint8_t  button		= RENC_intButtonStatus(rEnc);
 
-	if (button == 1) {
+	if (button > 0) {										// Either short or long press
 		update_screen = 0;									// Force to redraw the screen
-	} else if (button == 2) {								// The button was pressed for a long time
-	   	return &mode_standby;
 	}
-
 	if (mode_menu_item != item) {
 		mode_menu_item = item;
 		if (mode_menu_data.set_timeout) {					// Setup auto off timeout
@@ -799,7 +1072,7 @@ static MODE* 	MMENU_loop(void) {
 	update_screen = HAL_GetTick() + 10000;
 
 	if (!mode_menu_data.set_timeout) {
-		if (button == 1) {									// The button was pressed
+		if (button > 0) {									// The button was pressed
 			switch (item) {
 				case 0:										// auto off timeout
 					mode_menu_data.set_timeout = true;
@@ -822,16 +1095,18 @@ static MODE* 	MMENU_loop(void) {
 					mode_menu_item = 0;
 					return &mode_standby;
 				case 6:										// calibrate
-					mode_menu_item = 0;						// We will not return from calibration mode to this menu
-					return &mode_calibrate_tip;
+					mode_menu_item = 6;
+					return &mode_calibrate_menu;
 				case 7:										// activate tips
 					mode_menu_item = 0;						// We will not return from tip activation mode to this menu
 					return &mode_activate_tips;
 				case 8:										// tune the potentiometer
 					mode_menu_item = 0;						// We will not return from tune mode to this menu
 					return &mode_tune;
-				case 9:										// Initialize EEPROM menu
-					return &mode_init_eeprom;
+				case 9:										// Initialize the configuration
+					CFG_initConfigArea();
+					mode_menu_item = 0;						// We will not return from tune mode to this menu
+					return &mode_standby;
 				case 10:									// Tune PID
 					return &mode_tune_pid;
 				default:									// cancel
@@ -847,7 +1122,7 @@ static MODE* 	MMENU_loop(void) {
 		}
 	}
 
-	char item_value[4];
+	char item_value[8];
 	item_value[1] = '\0';
 	bool modify = false;
 	if (mode_menu_data.set_timeout) {
@@ -1002,61 +1277,6 @@ static MODE* 	MMBST_loop(void) {
 	DISPL_showMenuItem("Boost", boost_name[item], item_value, mode_boost_data.mode);
 
 	return &mode_menu_boost;
-}
-
-//---------------------- Initialize the data in EEPROM, including tips area ------
-static char* menu_init[] = {
-		"init config",
-		"init tips",
-		"exit"
-};
-
-static uint8_t mode_init_item = 0;
-
-static void 	MINIT_init(void) {
-	mode_init_item = 0;
-	RENC_resetEncoder(rEnc, mode_init_item, 0, 2, 1, 1, true);
-	update_screen = 0;
-}
-
-static MODE* 	MINIT_loop(void) {
-	uint8_t item 		= RENC_read(rEnc);
-	uint8_t button		= RENC_intButtonStatus(rEnc);
-
-	if (button == 1) {
-		update_screen = 0;									// Force to redraw the screen
-	} else if (button == 2) {								// The button was pressed for a long time
-	   	return &mode_standby;
-	}
-
-	if (mode_init_item != item) {
-		mode_init_item = item;
-		update_screen = 0;									// Force to redraw the screen
-	}
-
-	if (HAL_GetTick() < update_screen)
-		return &mode_init_eeprom;
-	update_screen = HAL_GetTick() + 10000;
-
-	if (button == 1) {										// The button was pressed
-		switch (item) {
-			case 0:											// Initialize configuration area
-				CFG_initConfigArea();
-				mode_init_item = 2;
-				break;
-			case 1:											// Initialize tips area
-				CFG_initTipArea();
-				mode_init_item = 2;
-				break;
-			default:										// exit
-				mode_init_item = 0;
-				return &mode_standby;
-		}
-	}
-
-	DISPL_showMenuItem("Init EEPROM", menu_init[item], 0, false);
-
-	return &mode_init_eeprom;
 }
 
 //---------------------- The PID coefficients tune mode --------------------------

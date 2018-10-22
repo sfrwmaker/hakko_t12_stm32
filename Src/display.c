@@ -251,19 +251,10 @@ void DMAIN_show(void) {
 }
 
 //---------------------- The Tune mode display mode -----------------------------
-static struct _class_DTUNE {
-	uint16_t	power;												// The power supplied 0 - max_power
-    uint16_t  	temp;                            					// The temperature in internal units (0-4095)
-    uint16_t    max_power;
-    bool      	is_celsius;                       					// whether the temperature units is Celsius
-} td;
-
-void  DTUNE_init(uint16_t mp, bool cels)							{ td.max_power = mp; td.is_celsius = cels; }
-void  DTUNE_power(uint16_t p)										{ if (p > td.max_power) p = td.max_power; td.power = p; }
-void  DTUNE_intTemp(uint16_t t)										{ if (t > 4095) t = 4095; td.temp = t; }
-
-void  DTUNE_show(void) {
-	uint8_t p_percent   = map(td.power, 0, td.max_power, 0, 100);
+void  DTUNE_show(uint16_t temp, uint16_t power, uint16_t max_power, bool celsius) {
+	if (power > max_power) power= max_power;
+	if (temp > 4095) temp = 4095;
+	uint8_t p_percent   = map(power, 0, max_power, 0, 100);
 	char p_buff[5];
 	sprintf(p_buff, "%3d%c", p_percent, '%');
 	char *title_buff 	= "Tune";
@@ -271,7 +262,7 @@ void  DTUNE_show(void) {
 	char sym[2];
 	sym[0] = 'F';
 	sym[1] = '\0';
-	if (td.is_celsius) {
+	if (celsius) {
 		sym[0] = 'C';
 		mtemp_buff[0] = '4';
 		mtemp_buff[1] = '5';
@@ -280,18 +271,18 @@ void  DTUNE_show(void) {
 	uint8_t pcnt_width = u8g_GetStrPixelWidth(u8g, p_buff) + 5;
 	uint8_t p_len		= 0;
 	uint8_t p_height	= 0;
-	if (td.power <= 100) {
-		p_len			= map(td.power, 0, 100, 1, 10);
-		p_height 		= map(td.power, 0, 100, 0, 4);
+	if (power <= 100) {
+		p_len			= map(power, 0, 100, 1, 10);
+		p_height 		= map(power, 0, 100, 0, 4);
 	} else {
-		p_len 			= map(td.power, 101, td.max_power, 10, d_width-10-pcnt_width);
-		p_height 		= map(td.power, 101, td.max_power, 4, 20);
+		p_len 			= map(power, 101, max_power, 10, d_width-10-pcnt_width);
+		p_height 		= map(power, 101, max_power, 4, 20);
 	}
 	uint8_t t_len		= 0;
-	if (td.temp <= 2048) {
-		t_len			= map(td.temp, 0, 2048, 0, 20);
+	if (temp <= 2048) {
+		t_len			= map(temp, 0, 2048, 0, 20);
 	} else {
-		t_len			= map(td.temp, 2049, 4095, 20, d_width-16);
+		t_len			= map(temp, 2049, 4095, 20, d_width-16);
 	}
 	uint8_t pos_450		= map(3600, 2049, 4095, 20, d_width-16) + 8;
 
@@ -504,6 +495,7 @@ void	DISPL_showCalibration(const char* tip_name, uint16_t ref_temp, uint16_t cur
 								uint16_t real_temp, bool celsius, uint8_t power, bool on, bool ready) {
 	static const char* title 	= "Tip:";
 	static const char* OFF		= "OFF";
+	static const char* ON  		= "ON";
 	static char sym[] = {'C', '\0'};
 
 	if (celsius)
@@ -536,7 +528,7 @@ void	DISPL_showCalibration(const char* tip_name, uint16_t ref_temp, uint16_t cur
 		u8g_DrawBitmap(u8g, 5+width, 33-12, 1, 5, bmDegree);
 		u8g_DrawStr(u8g, 5+8+width, 33, sym);
 		// Show current temperature
-		char temp_buff[3];
+		char temp_buff[4];
 		sprintf(temp_buff, "%3d", current_temp);
 		u8g_DrawBitmap(u8g, 5, 60-15, 1, 15, bmTemperature);
 		u8g_DrawStr(u8g, 16, 60, temp_buff);
@@ -549,6 +541,100 @@ void	DISPL_showCalibration(const char* tip_name, uint16_t ref_temp, uint16_t cur
 		// Show the power applied
 		if (p_height > 0) {
 			u8g_DrawTriangle(u8g, d_width-5, 63, d_width-5, 63-p_height, d_width-6-p_height/4, 63-p_height);
+		}
+		if ((p_height < 30) && on) {
+			width = u8g_GetStrPixelWidth(u8g, ON);
+			u8g_DrawStr(u8g, d_width-width-5, 33, ON);
+		}
+		if (!on) {
+			width = u8g_GetStrPixelWidth(u8g, OFF);
+			u8g_DrawStr(u8g, d_width-width-5, 33, OFF);
+		}
+	} while(u8g_NextPage(u8g));
+}
+
+//---------------------- The Calibration display function ------------------------
+void	DISPL_showCalibManual(const char* tip_name, uint16_t ref_temp, uint16_t current_temp,
+								uint16_t setup_temp, bool celsius, uint8_t power, bool on, bool ready) {
+	static const char* title 	= "Tip:";
+	static const char* OFF		= "OFF";
+	static const char* ON  		= "ON";
+	static const char* OK  		= "OK";
+	static char sym[] = {'C', '\0'};
+	static const uint16_t detail_area = 30;
+
+	if (celsius)
+		sym[0] = 'C';
+	else
+		sym[0] = 'F';
+	char ref_buff[10];
+	sprintf(ref_buff, "Set: %3d", ref_temp);
+
+	uint8_t p_height = 0;										  		// Applied power triangle height
+	if (power <= 10)
+		p_height = power;
+	else
+		p_height = map(power-10, 0, 90, 10, 45);
+
+	// calculate the length of the current temperature row bar
+	const uint16_t setup_temp_pos = d_width-32-detail_area;
+	uint16_t t_pos = 0;
+	if (current_temp >= setup_temp) {
+		uint16_t t_diff = constrain((current_temp - setup_temp)/8, 0, detail_area);
+		t_pos = setup_temp_pos + t_diff;
+	} else {
+		uint16_t t_diff = (setup_temp - current_temp)/8;
+		if (t_diff <= detail_area) {
+			t_pos = setup_temp_pos - t_diff;
+		} else {
+			t_diff -= detail_area;
+			t_pos   = setup_temp_pos - detail_area - constrain(t_diff / 8, 0, setup_temp_pos-detail_area-8);
+		}
+	}
+
+	u8g->font = u8g_font_profont15r;
+	u8g_FirstPage(u8g);
+	do {
+		// Show title
+		uint8_t width = u8g_GetStrPixelWidth(u8g, title);
+		uint8_t width_tip = u8g_GetStrPixelWidth(u8g, tip_name);
+		uint8_t total = width+width_tip+5;
+		int8_t  start = (d_width-total)/2;
+		if (start < 0) start = 0;
+		u8g_DrawStr(u8g, start, 13, title);
+		u8g_DrawStr(u8g, start+width+5, 13, tip_name);
+		u8g_DrawHLine(u8g, 5, 15, d_width-10);
+		// Show reference temperature
+		width = u8g_DrawStr(u8g, 5, 33, ref_buff);
+		u8g_DrawBitmap(u8g, 5+width, 33-12, 1, 5, bmDegree);
+		u8g_DrawStr(u8g, 5+8+width, 33, sym);
+		if (ready) {
+			// Show ready sign
+			width = u8g_GetStrPixelWidth(u8g, OK);
+			u8g_DrawStr(u8g, d_width-width-5, 33, OK);
+		}
+		// Show temperature bar frame
+		u8g_DrawBitmap(u8g, 0, d_height-10-9, 1, 10, bmTempGuageLeft);
+		u8g_DrawBitmap(u8g, d_width-24, d_height-10-7, 1, 6, bmTempGuageRight);
+		u8g_DrawHLine(u8g, 8, d_height-10-7, d_width-32);
+		u8g_DrawHLine(u8g, 8, d_height-10-2, d_width-32);
+		// Show setup temperature mark
+		u8g_DrawVLine(u8g, setup_temp_pos, d_height-10-2, 4);
+		u8g_DrawVLine(u8g, setup_temp_pos, d_height-10-7-4, 4);
+		// Show temperature row bar
+		if (t_pos > 10) {
+			u8g_DrawHLine(u8g, 8, d_height-10-5, t_pos-9);
+			u8g_DrawHLine(u8g, 8, d_height-10-6, t_pos-9);
+			u8g_DrawHLine(u8g, 8, d_height-10-4, t_pos-10);
+		}
+
+		// Show the power applied
+		if (p_height > 0) {
+			u8g_DrawTriangle(u8g, d_width-5, 63, d_width-5, 63-p_height, d_width-6-p_height/4, 63-p_height);
+		}
+		if ((p_height < 10) && on) {
+			width = u8g_GetStrPixelWidth(u8g, ON);
+			u8g_DrawStr(u8g, d_width-width-5, 33, ON);
 		}
 		if (!on) {
 			width = u8g_GetStrPixelWidth(u8g, OFF);

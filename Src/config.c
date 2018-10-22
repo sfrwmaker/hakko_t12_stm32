@@ -1,9 +1,12 @@
 #include <string.h>
+#include <stdlib.h>
 #include "config.h"
 #include "iron.h"
 #include "tools.h"
 #include "eeprom.h"
 #include "buzz.h"
+
+#define	 NO_TIP_CHUNK	255							// The tip found in the EEPROM flag in tip_table
 
 struct s_tempReference 	{
 	uint16_t	t200, t260, t330, t400;
@@ -16,23 +19,22 @@ static struct s_tempReference temp_ref = {
 	.t400	= 400
 };
 
-// Default tip calibration data. Built during tip verification procedure
-static TIP		default_tip;
-
 // Initialized active configuration data
-static RECORD	a_cfg;								// active configuration
-static RECORD	s_cfg;								// spare configuration, used when save the config to the EEPROM
-static TIP		a_tip;								// active tip configuration
+static RECORD		a_cfg;							// active configuration
+static RECORD		s_cfg;							// spare configuration, used when save the configuration to the EEPROM
+static TIP			a_tip;							// active tip configuration
+static TIP_TABLE	*tip_table = 0;					// Tip table - chunk number of the tip or 0xFF if does not exist in the EEPROM
 
 // Forward low-level function declarations
 static 	bool 	selectTip(uint8_t index);
-static 	bool 	verifyLoadedTips(void);
+static  uint8_t	buildTipTable(TIP_TABLE tt[]);
 static 	void 	setTipDefault(TIP *tip, bool init_name);
 static  bool	isValidTipConfig(TIP *tip);
 static 	void 	defaultCalibration(TIP *tip);
-static 	char* 	buildFullTipName(char *tip_name, const TIP* tip);
+static 	char* 	buildFullTipName(char tip_name[tip_name_sz], const uint8_t index);
 static	bool	areConfigsIdentical(const RECORD *one, const RECORD *two);
 static  bool	correctConfig(RECORD *cfg);
+static	uint8_t	freeTipChunkIndex(void);
 
 // Initialize default configuration parameters
 /*  PID coefficients history:
@@ -53,13 +55,16 @@ static void CFG_setDefaults(void) {
 	a_cfg.pid_Kd		= 3700;
 }
 
-// Initialize the configuration. Find the actual record in the EEPROM
+// Starting point.
+// Initialize the configuration. Find the actual record in the EEPROM.
 bool CFG_init(I2C_HandleTypeDef* pHi2c) {
 	EEPROM_init(pHi2c);
 
-	bool result = verifyLoadedTips();				// Read tip records, calculate average calibration values
-	if (!result)
-		return false;
+	tip_table = malloc(sizeof(TIP_TABLE) * TIPS_LOADED());
+	uint8_t tips_loaded = 0;
+	if (tip_table) {
+		tips_loaded = buildTipTable(tip_table);
+	}
 
 	if (!loadRecord(&a_cfg)) {
 		CFG_setDefaults();
@@ -68,17 +73,21 @@ bool CFG_init(I2C_HandleTypeDef* pHi2c) {
 	PID_change(1, a_cfg.pid_Kp);					// Initialize PID parameters from configuration
 	PID_change(2, a_cfg.pid_Ki);
 	PID_change(3, a_cfg.pid_Kd);
-	if (!selectTip(a_cfg.tip)) {
-		result = false;
-	}
+	selectTip(a_cfg.tip);
 	memcpy(&s_cfg, &a_cfg, sizeof(RECORD));			// Save spare configuration
-	return result;
+	return tips_loaded > 0;
 }
 
 // Load calibration data of the tip from EEPROM. If the tip is not calibrated, initialize the calibration data with the default values
 static bool selectTip(uint8_t index) {
+	if (!tip_table) return false;
 	bool result = true;
-	if (!loadTipData(&a_tip, index)) {
+	uint8_t tip_chunk_index = tip_table[index].tip_chunk_index;
+	if (tip_chunk_index == NO_TIP_CHUNK) {
+		setTipDefault(&a_tip, true);
+		return false;
+	}
+	if (loadTipData(&a_tip, tip_chunk_index) != EPR_OK) {
 		setTipDefault(&a_tip, true);				// Initialize default TIP calibration parameters and TIP name
 		result = false;
 	} else {
@@ -93,9 +102,10 @@ static bool selectTip(uint8_t index) {
 
 // Change the current tip. Save configuration to the EEPROM
 void CFG_changeTip(uint8_t index) {
-	selectTip(index);
-	a_cfg.tip	= index;
-	saveRecord(&a_cfg);
+	if (selectTip(index)) {
+		a_cfg.tip	= index;
+		CFG_saveConfig();
+	}
 }
 
 bool		CFG_isCelsius(void) 						{ return a_cfg.celsius;					}
@@ -176,7 +186,7 @@ bool CFG_isCold(uint16_t temp, uint16_t ambient) {
 // Build the complete tip name (including "T12-" prefix)
 const char* CFG_tipName(void) {
 	static char tip_name[tip_name_sz+5];
-	return buildFullTipName(tip_name, &a_tip);				// a_tip - is a global variable initialized with the current IRON tip
+	return buildFullTipName(tip_name, a_cfg.tip);			// a_cfg - is a global variable initialized with the current configuration
 }
 
 // Save current configuration to the EEPROM
@@ -234,9 +244,12 @@ void CFG_saveTipCalibtarion(uint8_t index, uint16_t temp[4], uint8_t mask, int8_
 	tip.t400		= temp[3];
 	tip.mask		= mask;
 	tip.ambient		= ambient;
-	if (isValidTipConfig(&tip)) {
-		saveTipData(&tip, index);
-		BUZZ_doubleBeep();
+	tip_table[index].tip_mask	= mask;
+	const char* name	= TIPS_name(index);
+	if (name && isValidTipConfig(&tip)) {
+		strncpy(tip.name, name, tip_name_sz);
+		if (saveTipData(&tip, tip_table[index].tip_chunk_index) == EPR_OK)
+			BUZZ_shortBeep();
 	}
 
 }
@@ -248,38 +261,59 @@ void CFG_resetTipCalibration(void) {
 
 // Toggle (activate/deactivate) tip activation flag. Do not change active tip configuration
 void CFG_toggleTipActivation(uint8_t index) {
+	if (!tip_table)	return;
 	TIP tip;
-	if (loadTipData(&tip, index)) {
-		tip.mask ^= TIP_ACTIVE;
-		saveTipData(&tip, index);
+	uint8_t tip_chunk_index = tip_table[index].tip_chunk_index;
+	if (tip_chunk_index == NO_TIP_CHUNK) {					// This tip data is not in the EEPROM, it was not active!
+		tip_chunk_index = freeTipChunkIndex();
+		if (tip_chunk_index == NO_TIP_CHUNK) return;		// Failed to find free slot to save tip configuration
+		const char *name = TIPS_name(index);
+		if (name) {
+			strncpy(tip.name, name, tip_name_sz);			// Initialize tip name
+			tip.mask	= TIP_ACTIVE;
+			defaultCalibration(&tip);
+			if (saveTipData(&tip, tip_chunk_index) == EPR_OK) {
+				tip_table[index].tip_chunk_index	= tip_chunk_index;
+				tip_table[index].tip_mask			= tip.mask;
+			}
+		}
+	} else {												// Tip configuration data exists in the EEPROM
+		if (loadTipData(&tip, tip_chunk_index) == EPR_OK) {
+			tip.mask ^= TIP_ACTIVE;
+			if (saveTipData(&tip, tip_chunk_index) == EPR_OK) {
+				tip_table[index].tip_mask			= tip.mask;
+			}
+		}
 	}
 }
 
  // Build the tip list starting from the previous tip
 int	CFG_tipList(uint8_t second, TIP_ITEM list[], uint8_t list_len, bool active_only) {
-	TIP tip;
+	if (!tip_table) {										// If tip_table is not initialized, return empty list
+		for (uint8_t tip_index = 0; tip_index < list_len; ++tip_index) {
+			list[tip_index].name[0] = '\0';						// Clear whole list
+		}
+		return 0;
+	}
+
 	uint8_t loaded = 0;
 	// Seek backward for one more tip
 	for (int tip_index = second - 1; tip_index >= 0; --tip_index) {
-		if (!loadTipData(&tip, tip_index))
-			return loaded;
-		if (!active_only || (tip.mask & TIP_ACTIVE)) {
+		if (!active_only || (tip_table[tip_index].tip_mask & TIP_ACTIVE)) {
 			list[loaded].tip_index	= tip_index;
-			list[loaded].mask		= tip.mask;
-			buildFullTipName(list[loaded].name, &tip);
+			list[loaded].mask		= tip_table[tip_index].tip_mask;
+			buildFullTipName(list[loaded].name, tip_index);
 			++loaded;
 			break;											// Load just one tip
 		}
 	}
 
 	for (uint8_t tip_index = second; tip_index < TIPS_LOADED(); ++tip_index) {
-		if (!loadTipData(&tip, tip_index))
-			return loaded;
-		if (active_only && !(tip.mask & TIP_ACTIVE))		// This tip is not active, but active tip list required
+		if (active_only && !(tip_table[tip_index].tip_mask & TIP_ACTIVE)) // This tip is not active, but active tip list required
 			continue;										// Skip this tip
 		list[loaded].tip_index	= tip_index;
-		list[loaded].mask		= tip.mask;
-		buildFullTipName(list[loaded].name, &tip);
+		list[loaded].mask		= tip_table[tip_index].tip_mask;
+		buildFullTipName(list[loaded].name, tip_index);
 		++loaded;
 		if (loaded >= list_len)	break;
 	}
@@ -311,34 +345,10 @@ void CFG_referenceTemp(uint16_t ref_temp[]) {
 	ref_temp[3]	= temp_ref.t400;
 }
 
-// Initialize the EEPROM with the TIPS name
-void CFG_initTipArea(void) {
-	TIP tip;
-	tip.t200	= 0;
-	tip.t260	= 0;
-	tip.t330	= 0;
-	tip.t400	= 0;
-	tip.mask	= TIP_ACTIVE;
-	tip.ambient	= 0;
-
-	TIP eeprom_tip;
-	for (uint8_t i = 0; i < TIPS_LOADED(); ++i) {
-		const char *name = TIPS_name(i);
-		if (loadTipData(&eeprom_tip, i)) {
-			if (!name || strcmp(name, eeprom_tip.name) == 0)
-				continue;
-		}
-		memcpy(tip.name, name, tip_name_sz);
-		initializeTipData(&tip, i);
-	}
-}
-
 // Initialize the configuration area. Save default configuration to the EEPROM
 void CFG_initConfigArea(void) {
 	clearConfigArea();
-	if (!loadRecord(&a_cfg)) {
-		CFG_setDefaults();
-	}
+	CFG_setDefaults();
 	saveRecord(&a_cfg);
 }
 
@@ -350,63 +360,45 @@ void CFG_pidParams(int32_t* Kp, int32_t* Ki, int32_t* Kd) {
 }
 
 //---------------------- Low level functions -------------------------------------
-// Verify tips loaded in the EEPROM. Calculate default tip calibration parameters. default_tip is a global variable
-static bool verifyLoadedTips(void) {
-	default_tip.t200	= 0;
-	default_tip.t260	= 0;
-	default_tip.t330	= 0;
-	default_tip.t400	= 0;
-	default_tip.ambient = 0;
-	default_tip.name[0] = 'd';
-	default_tip.name[1] = 'e';
-	default_tip.name[2]	= 'f';
-	default_tip.name[3]	= '\0';
-	default_tip.mask 	= TIP_ACTIVE;
+/*
+ * Builds the tip configuration table: reads whole tip configuration area and search for configured or active tip
+ * If the tip found, updates the tip_table array with the tip chunk number
+ */
+static uint8_t	buildTipTable(TIP_TABLE tt[]) {
+	for (uint8_t i = 0; i < TIPS_LOADED(); ++i) {
+		tt[i].tip_chunk_index 	= NO_TIP_CHUNK;
+		tt[i].tip_mask 			= 0;
+	}
 
-	// First, build average configuration data, based on calibrated tips
 	TIP  tmp_tip;
-	int  loaded = 0;
-	int  calibrated_tips = 0;
-	for (int i = 0; i < TIPS_LOADED(); ++i) {
-		if (loadTipData(&tmp_tip, i)) {
-			const char* tip_name = TIPS_name(i);
-			if (strncmp(tip_name, tmp_tip.name, tip_name_sz) == 0) {	// The name is match
-				++loaded;
-			}
-			if ((tmp_tip.mask & TIP_CALIBRATED) && isValidTipConfig(&tmp_tip)) {	// The tip calibrated and configuration is valid
-				default_tip.ambient 	+= tmp_tip.ambient;
-				default_tip.t200 		+= tmp_tip.t200;
-				default_tip.t260 		+= tmp_tip.t260;
-				default_tip.t330 		+= tmp_tip.t330;
-				default_tip.t400 		+= tmp_tip.t400;
-				++calibrated_tips;
-			}
+	int	 tip_index 	= 0;
+	int loaded 		= 0;
+	for (int i = 0; i < tipDataTotal(); ++i) {
+		switch (loadTipData(&tmp_tip, i)) {
+			case EPR_OK:
+				tip_index = TIPS_index(tmp_tip.name);
+				// Loaded existing tip data once
+				if (tip_index >= 0 && tmp_tip.mask > 0 && tt[tip_index].tip_chunk_index == NO_TIP_CHUNK) {
+					tt[tip_index].tip_chunk_index 	= i;
+					tt[tip_index].tip_mask			= tmp_tip.mask;
+					++loaded;
+				}
+				break;
+			case EPR_IO:										// Wait a little in case of IO error
+				return loaded;
+				break;
+			default:											// Continue the procedure on all other errors
+				break;
 		}
 	}
-
-	if (calibrated_tips > 0) {							// Some calibrated tip found
-		int round = calibrated_tips >> 1;
-		default_tip.ambient 	+= round; default_tip.ambient 	/= calibrated_tips;
-		default_tip.t200 		+= round; default_tip.t200 		/= calibrated_tips;
-		default_tip.t260 		+= round; default_tip.t260 		/= calibrated_tips;
-		default_tip.t330 		+= round; default_tip.t330 		/= calibrated_tips;
-		default_tip.t400 		+= round; default_tip.t400 		/= calibrated_tips;
-	} else {											// Load default values
-		defaultCalibration(&default_tip);
-	}
-	return (loaded > 0);
+	return loaded;
 }
 
 static void setTipDefault(TIP *tip, bool init_name) {
+	defaultCalibration(tip);
+	tip->mask = TIP_ACTIVE;
 	if (init_name) {
-		memcpy(tip, &default_tip, sizeof(TIP));
-	} else {
-		tip->ambient	= default_tip.ambient;
-		tip->mask		= TIP_ACTIVE;
-		tip->t200		= default_tip.t200;
-		tip->t260		= default_tip.t260;
-		tip->t330		= default_tip.t330;
-		tip->t400		= default_tip.t400;
+		strcpy(tip->name, "def");
 	}
 }
 
@@ -414,24 +406,29 @@ static bool	isValidTipConfig(TIP *tip) {
 	return (tip->t200 < tip->t260 && tip->t260 < tip->t330 && tip->t330 < tip->t400);
 }
 
-// Apply default calibration parameters of the tip
+// Apply default calibration parameters of the tip; Prevent overheating of the tip
 static void defaultCalibration(TIP *tip) {
-	tip->t200		=  950;
-	tip->t260		= 1520;
-	tip->t330		= 1800;
-	tip->t400		= 3450;
+	tip->t200		=  680;
+	tip->t260		=  964;
+	tip->t330		= 1290;
+	tip->t400		= 1600;
 	tip->ambient	= 25;
 }
 
-// Buld full name of the current tip. Add prefix "T12-" for the "usual" tip or use complete name for "N*" tips
-static char* buildFullTipName(char *tip_name, const TIP* tip) {
-	if (tip->name[0] == 'N') {
-		strncpy(tip_name, tip->name, tip_name_sz);
-		tip_name[tip_name_sz] = '\0';
+// Build full name of the current tip. Add prefix "T12-" for the "usual" tip or use complete name for "N*" tips
+static char* buildFullTipName(char *tip_name, const uint8_t index) {
+	const char *name = TIPS_name(index);
+	if (name) {
+		if (name[0] == 'N') {
+			strncpy(tip_name, name, tip_name_sz);
+			tip_name[tip_name_sz-1] = '\0';
+		} else {
+			strcpy(tip_name, "T12-");
+			strncpy(&tip_name[4], name, tip_name_sz);
+			tip_name[tip_name_sz+4] = '\0';
+		}
 	} else {
-		strcpy(tip_name, "T12-");
-		strncpy(&tip_name[4], tip->name, tip_name_sz);
-		tip_name[tip_name_sz+4] = '\0';
+		strcpy(tip_name, "T12-def");
 	}
 	return tip_name;
 }
@@ -466,4 +463,21 @@ static bool correctConfig(RECORD *cfg) {
 	if (cfg->boost_temp > 80)		{	cfg->boost_temp 	= 80;  result = false; }
 	if (cfg->boost_duration > 180)	{	cfg->boost_duration	= 180; result = false; }
 	return result;
+}
+
+// Find the tip_chunk_index in the TIP EEPROM AREA which is not used
+static	uint8_t	freeTipChunkIndex(void) {
+	for (uint8_t index = 0; index < tipDataTotal(); ++index) {
+		bool chunk_allocated = false;
+		for (uint8_t i = 0; i < TIPS_LOADED(); ++i) {
+			if (tip_table[i].tip_chunk_index == index) {
+				chunk_allocated = true;
+				break;
+			}
+		}
+		if (!chunk_allocated) {
+			return index;
+		}
+	}
+	return NO_TIP_CHUNK;
 }
