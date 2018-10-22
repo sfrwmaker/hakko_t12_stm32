@@ -21,16 +21,16 @@ void    RENC_rINTR(RENC* renc);
 struct _class_RENC {
     int32_t          	min_pos, max_pos;
     volatile uint8_t	mode;                      	// The button mode: 0 - not pressed, 1 - pressed, 2 - long pressed
-    uint16_t          	overPress;                  // Maximum time in ms the button can be pressed
+    uint16_t          	over_press;                  // Maximum time in ms the button can be pressed
     volatile uint32_t 	bpt;                        // Time in ms when the button was pressed (press time)
     volatile uint32_t 	rpt;                       	// Time in ms when the encoder was rotated
     volatile uint32_t 	changed;                  	// Time in ms when the value was changed
     volatile int16_t  	pos;                       	// Encoder current position
-    volatile bool       sUp;						// The status of the secondary channel
-    GPIO_TypeDef* 		bPORT;						// The PORT of the press button
-    GPIO_TypeDef*     	mPORT;						// The PORT of the main channel
-	GPIO_TypeDef*		sPORT;               		// The PORT of the secondary channel
-    uint16_t			bPIN, mPIN,  sPIN;	    	// The PIN number of the button, main channel and secondary channel
+    volatile bool       s_up;						// The status of the secondary channel
+    GPIO_TypeDef* 		b_port;						// The PORT of the press button
+    GPIO_TypeDef*     	m_port;						// The PORT of the main channel
+	GPIO_TypeDef*		s_port;               		// The PORT of the secondary channel
+    uint16_t			b_pin, m_pin,  s_pin;	    	// The PIN number of the button, main channel and secondary channel
     bool              	is_looped;                  // Whether the encoder is looped
     uint8_t            	increment;                  // The value to add or substract for each encoder tick
     uint8_t             fast_increment;             // The value to change encoder when it runs quickly

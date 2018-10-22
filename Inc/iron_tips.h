@@ -7,5 +7,6 @@
 
 uint16_t	TIPS_LOADED(void);
 const char* TIPS_name(uint8_t index);
+int 		TIPS_index(const char *name);
 
 #endif

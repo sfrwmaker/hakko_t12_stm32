@@ -23,10 +23,7 @@ void	DMAIN_msgBoost(void);
 void	DMAIN_timeToOff(uint8_t time);
 void 	DMAIN_tip(const char *tip_name, bool calibrated);
 
-void	DTUNE_init(uint16_t mp, bool cels);
-void 	DTUNE_power(uint16_t p);
-void 	DTUNE_intTemp(uint16_t t);
-void 	DTUNE_show(void);
+void  	DTUNE_show(uint16_t temp, uint16_t power, uint16_t max_power, bool celsius);
 
 void	DPIDK_init(void);
 void	DPIDK_modify(uint8_t index, uint16_t value);
@@ -35,6 +32,7 @@ void	DPIDK_showGraph(void);
 void	DPIDK_showMenu(uint16_t pid_k[3], uint8_t index);
 
 void 	DISPL_showCalibration(const char* tip_name, uint16_t ref_temp, uint16_t current_temp, uint16_t real_temp, bool celsius, uint8_t power, bool on, bool ready);
+void 	DISPL_showCalibManual(const char* tip_name, uint16_t ref_temp, uint16_t current_temp, uint16_t setup_temp, bool celsius, uint8_t power, bool on, bool ready);
 void	DISPL_showTipList(const char* title,  TIP_ITEM list[], uint8_t list_len, uint8_t index, bool name_only);
 void	DISPL_showMenuItem(const char* title, const char* item, const char* value, bool modify);
 void	DISPL_showError(void);

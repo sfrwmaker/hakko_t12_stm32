@@ -12,7 +12,6 @@
  * Records are aligned by 2**n bytes (16 bytes)
  */
 typedef struct s_config RECORD;
-
 struct s_config {
 	uint32_t	ID;									// The configuration record ID
 	uint32_t	crc;								// The checksum
@@ -29,14 +28,13 @@ struct s_config {
 
 #define			TIP_ACTIVE		1
 #define			TIP_CALIBRATED	2
-/* For each possible tip there is a configuration record in the low area in the EEPROM.
+/* For each possible tip there is a configuration record in the upper area of the EEPROM.
  * This record has the following format:
  * 4 reference temperature points
  * tip status bitmap
  * tip suffix name
  */
 typedef struct s_tip TIP;
-
 struct s_tip {
 	uint16_t	t200, t260, t330, t400;				// The internal temperature in reference points
 	uint8_t		mask;								// The bit mask: TIP_ACTIVE + TIP_CALIBRATED
@@ -46,15 +44,21 @@ struct s_tip {
 };
 
 typedef struct s_tip_list_item	TIP_ITEM;
-
 struct s_tip_list_item {
 	uint8_t		tip_index;							// Index of the tip in the global list in EEPROM
 	uint8_t		mask;								// The bit mask: 0 - active, 1 - calibrated
 	char		name[tip_name_sz+5];				// Complete tip name, i.t T12-***
 };
 
+typedef struct s_tip_table		TIP_TABLE;
+struct s_tip_table {
+	uint8_t		tip_chunk_index;					// The tip chunk index in the EEPROM
+	uint8_t		tip_mask;							// The bit mask: 0 - active, 1 - calibrated
+};
+
 //------------------------------------------ Methods for configuration data ------------------------------------
-bool 		CFG_init(I2C_HandleTypeDef* pHi2c);
+bool		CFG_init(I2C_HandleTypeDef* pHi2c);
+uint16_t 	tipChunksTotal(void);
 bool		CFG_isCelsius(void);
 bool		CFG_isBuzzerEnabled(void);
 void		CFG_setup(uint8_t off_timeout, bool buzzer, bool celsius);
@@ -81,7 +85,6 @@ void		CFG_saveBoost(uint8_t temp, uint8_t duration);
 void		CFG_saveConfig(void);
 void		CFG_restoreConfig(void);
 void		CFG_savePID(const int32_t Kp, const int32_t Ki, const int32_t Kd);
-void 		CFG_initTipArea(void);
 void 		CFG_initConfigArea(void);
 
 #endif
