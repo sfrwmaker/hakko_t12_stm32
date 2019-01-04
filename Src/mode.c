@@ -271,7 +271,7 @@ static void 	MWORK_hwTimeout(uint16_t low_temp) {
 			preset_temp			= IRON_getTemp();		// Save the current preset temperature
 			int16_t  ambient	= IRON_ambient();
 			uint16_t temp_low	= CFG_getLowTemp();
-			uint16_t temp 		= CFG_human2temp(temp_low, ambient);
+			uint16_t temp 		= CFG_lowPowerTemp(temp_low, ambient);
 			IRON_setTemp(temp);
 			time_to_return 		= HAL_GetTick() + mode_work_data.off_timeout * 1000;
 			mode_work_data.auto_off_notified 	= false;

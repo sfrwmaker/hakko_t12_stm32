@@ -191,6 +191,22 @@ uint16_t	CFG_human2temp(uint16_t t, int16_t ambient) {
 	return temp;
 }
 
+// Approximate the temperature from human readable units (Celsius or Fahrenheit) to the internal units for low power mode
+uint16_t	CFG_lowPowerTemp(uint16_t t, int16_t ambient) {
+	uint16_t tC = t;
+	if (!a_cfg.celsius) {
+		tC = fahrenheitToCelsius(t);
+	}
+	if (tC > temp_ref.t200)
+		return CFG_human2temp(t, ambient);
+
+	int d = ambient - a_tip.ambient;
+	uint16_t t0 	= ambient;
+	uint16_t t200	= temp_ref.t200 + d;
+
+	return map(tC, t0, t200, 0, a_tip.t200);
+}
+
 // Is it safe to touch the IRON 
 bool CFG_isCold(uint16_t temp, uint16_t ambient) {
 	return (temp < a_tip.t200) && (map(temp, 0, a_tip.t200, ambient, temp_ref.t200) < ambient+5);
