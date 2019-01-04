@@ -68,6 +68,7 @@ uint16_t	GFG_tempPresetHuman(void);
 bool		CFG_isCold(uint16_t temp, uint16_t ambient);
 uint16_t	CFG_tempHuman(uint16_t temp, int16_t ambient);
 uint16_t	CFG_human2temp(uint16_t temp, int16_t ambient);
+uint16_t	CFG_lowPowerTemp(uint16_t t, int16_t ambient);
 const char* CFG_tipName(void);
 uint8_t		CFG_currentTipIndex(void);
 bool		CFG_isTipCalibrated(void);
