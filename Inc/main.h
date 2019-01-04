@@ -75,6 +75,8 @@ typedef unsigned char		bool;
 #define OLED_CS_GPIO_Port GPIOB
 #define OLED_SCK_Pin GPIO_PIN_13
 #define OLED_SCK_GPIO_Port GPIOB
+#define VIBRO_SW_Pin GPIO_PIN_14
+#define VIBRO_SW_GPIO_Port GPIOB
 #define OLED_SDA_Pin GPIO_PIN_15
 #define OLED_SDA_GPIO_Port GPIOB
 #define encoder_R_Pin GPIO_PIN_3

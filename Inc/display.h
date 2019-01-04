@@ -19,6 +19,7 @@ void	DMAIN_msgON(void);
 void	DMAIN_msgCold(void);
 void	DMAIN_msgReady(void);
 void	DMAIN_msgIdle(void);
+void	DMAIN_msgStandby(void);
 void	DMAIN_msgBoost(void);
 void	DMAIN_timeToOff(uint8_t time);
 void 	DMAIN_tip(const char *tip_name, bool calibrated);

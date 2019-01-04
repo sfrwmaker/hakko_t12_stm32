@@ -19,6 +19,8 @@ struct s_config {
 	uint16_t	temp;								// The preset temperature of the IRON in degrees (Celsius or Fahrenheit)
 	uint8_t		tip;								// Current tip index in the tip raw array in the EEPROM
 	uint8_t		off_timeout;						// The Automatic switch-off timeout in minutes [0 - 30]
+	uint16_t	low_temp;							// The low power temperature (C/F) or 0 if the vibro sensor is disabled
+	uint8_t		low_to;								// The low power timeout (seconds)
 	bool		celsius;							// Temperature units: true - Celsius, false - Fahrenheit
 	bool		buzzer;								// Whether the buzzer is enabled
 	uint8_t		boost_temp;							// The boost increment temperature (Celsius). Zero if disabled
@@ -61,7 +63,7 @@ bool		CFG_init(I2C_HandleTypeDef* pHi2c);
 uint16_t 	tipChunksTotal(void);
 bool		CFG_isCelsius(void);
 bool		CFG_isBuzzerEnabled(void);
-void		CFG_setup(uint8_t off_timeout, bool buzzer, bool celsius);
+void		CFG_setup(uint8_t off_timeout, bool buzzer, bool celsius, uint16_t low_temp, uint8_t low_to);
 uint16_t	GFG_tempPresetHuman(void);
 bool		CFG_isCold(uint16_t temp, uint16_t ambient);
 uint16_t	CFG_tempHuman(uint16_t temp, int16_t ambient);
@@ -72,6 +74,8 @@ bool		CFG_isTipCalibrated(void);
 void     	CFG_changeTip(uint8_t index);
 void		CFG_savePresetTempHuman(uint16_t temp_set);
 uint8_t		CFG_getOffTimeout(void);
+uint16_t	CFG_getLowTemp(void);
+uint8_t		CFG_getLowTO(void);
 void		CFG_getTipCalibtarion(uint16_t temp[4]);
 void		CFG_applyTipCalibtarion(uint16_t temp[4], int8_t ambient);
 void		CFG_saveTipCalibtarion(uint8_t index, uint16_t temp[4], uint8_t mask, int8_t ambient);

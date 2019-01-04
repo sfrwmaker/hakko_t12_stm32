@@ -21,6 +21,7 @@ uint32_t	IRON_dispersionOfTemp(void);							// The math dispersion of temperatur
 uint16_t 	IRON_avgPower(void);									// The power applied
 uint16_t	IRON_dispersionOfPower(void);							// The math dispersion of power applied
 bool		IRON_connected(void);									// Whether the IRON is connected to the controller
+bool		IRON_vibroSwitch(void);									// Status of vibro switch. True - the IRON is used
 uint8_t 	IRON_appliedPwrPercent(void);							// The applied power in percent
 int			IRON_ambient(void);										// The ambient temperature (Celsius)
 int32_t		PID_change(uint8_t p, int32_t k);						// Tune PID parameters
