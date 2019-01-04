@@ -9,5 +9,6 @@ Revision history
   3. Now only active tips are placed to the eeprom. It is possible to ad new tip to the tip list.
   4. New calibration procedure implemented
   5. Minor bug fixed
+
 01/04/2019
   1. Tilt switch implemented
