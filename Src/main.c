@@ -487,11 +487,11 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, OLED_RESET_Pin|OLED_DC_Pin|OLED_CS_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : encoder_L_Pin */
-  GPIO_InitStruct.Pin = encoder_L_Pin;
+  /*Configure GPIO pins : encoder_L_Pin VIBRO_SW_Pin */
+  GPIO_InitStruct.Pin = encoder_L_Pin|VIBRO_SW_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(encoder_L_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pins : encoder_B_Pin encoder_R_Pin */
   GPIO_InitStruct.Pin = encoder_B_Pin|encoder_R_Pin;

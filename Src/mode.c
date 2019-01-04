@@ -209,6 +209,7 @@ static struct {
 	uint8_t		emp_k;									// Exponential average coefficient
 	bool 		auto_off_notified;						// The time (in ms) when the automatic power-off was notified
 	bool      	ready;									// Whether the IRON have reached the preset temperature
+	bool		lowpower_mode;							// Whether hardware low power mode using vibration switch
 } mode_work_data;
 
 static void 	MWORK_init(void) {
@@ -232,6 +233,7 @@ static void 	MWORK_init(void) {
 	mode_work_data.ready 				= false;
 	mode_work_data.emp_k				= 5;
 	mode_work_data.off_timeout			= CFG_getOffTimeout() * 60;
+	mode_work_data.lowpower_mode		= false;
 	time_to_return						= 0;
 	update_screen						= 0;
 }
@@ -243,6 +245,39 @@ static void		MWORK_adjustPresetTemp(uint16_t presetTemp) {
 	if (tempH != presetTemp) {							// The ambient temperature have changed, we need to adjust preset temperature
 		temp			= CFG_human2temp(presetTemp, ambient);
 		IRON_adjust(temp);
+	}
+}
+
+static void 	MWORK_hwTimeout(uint16_t low_temp) {
+	static uint16_t preset_temp		= 0;
+	static uint32_t lowpower_time	= 0;				// The time (ms) to turn on the low power mode
+
+	uint32_t now_ms = HAL_GetTick();
+	if (IRON_vibroSwitch()) {							// If the IRON is used, Reset standby time
+		uint32_t to = CFG_getLowTO();
+		lowpower_time = now_ms + to * 1000;				// Convert timeout to milliseconds
+		if (mode_work_data.lowpower_mode) {				// If the IRON is in low power mode, return to main working mode
+			IRON_setTemp(preset_temp);
+			mode_work_data.lowpower_mode	= false;
+			mode_work_data.ready 			= false;
+			time_to_return	= 0;						// Disable to return to the STANDBY mode
+			DMAIN_msgON();
+		}
+		return;
+	}
+
+	if (!mode_work_data.lowpower_mode && lowpower_time) {
+		if (now_ms >= lowpower_time) {
+			preset_temp			= IRON_getTemp();		// Save the current preset temperature
+			int16_t  ambient	= IRON_ambient();
+			uint16_t temp_low	= CFG_getLowTemp();
+			uint16_t temp 		= CFG_human2temp(temp_low, ambient);
+			IRON_setTemp(temp);
+			time_to_return 		= HAL_GetTick() + mode_work_data.off_timeout * 1000;
+			mode_work_data.auto_off_notified 	= false;
+			mode_work_data.lowpower_mode		= true;
+			DMAIN_msgStandby();
+		}
 	}
 }
 
@@ -314,27 +349,33 @@ static MODE* 	MWORK_loop(void) {
 
 	// If the automatic power-off feature is enabled, check the IRON status
 	if (mode_work_data.off_timeout && mode_work_data.ready) {
-		if ((temp <= temp_set) && (temp_set - temp <= 4) && (td <= 200) && (pd <= 25)) {
-			// Evaluate the average power in the idle state
-			ip = empAverage(&mode_work_data.idle_summ, mode_work_data.emp_k, ap);
-		}
-
-		// Check the IRON current status: idle or used
-		if ((ap - ip >= 10)) {							// The applied power is greater than idle power. The IRON being used!
-			if (time_to_return) {						// The time to switch off the IRON was initialized
-				time_to_return = 0;
-				mode_work_data.auto_off_notified 	= false;// Initialize the idle state power
+		uint16_t low_temp = CFG_getLowTemp();
+		if (low_temp) {										// Use hardware vibration switch to turn low power mode
+			MWORK_hwTimeout(low_temp);
+		} else {
+			// Use applied power analysis to automatically power-off the IRON
+			if ((temp <= temp_set) && (temp_set - temp <= 4) && (td <= 200) && (pd <= 25)) {
+				// Evaluate the average power in the idle state
+				ip = empAverage(&mode_work_data.idle_summ, mode_work_data.emp_k, ap);
 			}
-			DMAIN_msgON();
-			MWORK_adjustPresetTemp(temp_setH);
-		} else {										// The IRON is is its idle state
-			if (!time_to_return) {
-				time_to_return = HAL_GetTick() + mode_work_data.off_timeout * 1000;
-				mode_work_data.auto_off_notified 	= false;
-			}
-			DMAIN_msgIdle();
-		}
 
+			// Check the IRON current status: idle or used
+			if ((ap - ip >= 10)) {							// The applied power is greater than idle power. The IRON being used!
+				if (time_to_return) {						// The time to switch off the IRON was initialized
+					time_to_return = 0;
+					mode_work_data.auto_off_notified 	= false;// Initialize the idle state power
+				}
+				DMAIN_msgON();
+				MWORK_adjustPresetTemp(temp_setH);
+			} else {										// The IRON is is its idle state
+				if (!time_to_return) {
+					time_to_return = HAL_GetTick() + mode_work_data.off_timeout * 1000;
+					mode_work_data.auto_off_notified 	= false;
+				}
+				DMAIN_msgIdle();
+			}
+		}
+		
 		// Show the time remaining to switch off the IRON
 		if (time_to_return) {
 			uint32_t to = (time_to_return - HAL_GetTick()) / 1000;
@@ -1013,43 +1054,54 @@ static MODE* 	MFAIL_loop(void) {
 
 //---------------------- The Menu mode -------------------------------------------
 static char* menu_name[] = {
-		"auto off",
-		"units",
-		"buzzer",
-		"boost setup",
-		"save",
-		"cancel",
-		"calibrate tip",
-		"activate tips",
-		"tune",
-		"reset config",
-		"Tune PID"
+	"boost setup",
+	"units",
+	"buzzer",
+	"auto off",
+	"standby temp",
+	"standby time",
+	"save",
+	"cancel",
+	"calibrate tip",
+	"activate tips",
+	"tune",
+	"reset config",
+	"Tune PID"
 };
 
 static struct {
-	uint8_t	off_timeout;									// Automatic switch off timeout (minutes or 0 to disable)
-	bool	buzzer;											// Whether the buzzer is enabled
-	bool	celsius;										// Temperature units: C/F
-	bool	set_timeout;									// Whether the off timeout is setting up
-    uint8_t	m_len;											// The menu length
+	uint8_t		off_timeout;									// Automatic switch off timeout (minutes or 0 to disable)
+	uint16_t	low_temp;										// The low power temperature (Celsius or Fahrenheit) 0 - disable vibro sensor
+	uint8_t		low_to;											// The low power timeout, seconds
+	bool		buzzer;											// Whether the buzzer is enabled
+	bool		celsius;										// Temperature units: C/F
+	uint8_t		set_param;										// The index of the modifying parameter
+    uint8_t		m_len;											// The menu length
 } mode_menu_data;
 
-static uint8_t mode_menu_item = 0;							// Save active menu element index to return back later
+static uint8_t mode_menu_item = 1;								// Save active menu element index to return back later
 
 static void 	MMENU_init(void) {
 	mode_menu_data.off_timeout	= CFG_getOffTimeout();
+	mode_menu_data.low_temp		= CFG_getLowTemp();
+	mode_menu_data.low_to		= CFG_getLowTO();
 	mode_menu_data.buzzer		= CFG_isBuzzerEnabled();
 	mode_menu_data.celsius		= CFG_isCelsius();
-	mode_menu_data.set_timeout	= false;
-	mode_menu_data.m_len		= 11;						// The number of the items in the menu
+	mode_menu_data.set_param	= 0;
+	mode_menu_data.m_len		= 13;						// The number of the items in the menu
 	if (!CFG_isTipCalibrated())
-		mode_menu_item			= 6;						// Select calibration menu item
+		mode_menu_item			= 8;						// Select calibration menu item
 	RENC_resetEncoder(rEnc, mode_menu_item, 0, mode_menu_data.m_len-1, 1, 1, true);
 	update_screen = 0;
 }
 
+// Minimum standby temperature, Celsius
+#define	min_standby_C	120
+// Maximum standby temperature, Celsius
+#define max_standby_C	200
+
 static MODE* 	MMENU_loop(void) {
-	uint8_t item 		= RENC_read(rEnc);
+	volatile uint8_t item 		= RENC_read(rEnc);
 	uint8_t  button		= RENC_intButtonStatus(rEnc);
 
 	if (button > 0) {										// Either short or long press
@@ -1057,12 +1109,29 @@ static MODE* 	MMENU_loop(void) {
 	}
 	if (mode_menu_item != item) {
 		mode_menu_item = item;
-		if (mode_menu_data.set_timeout) {					// Setup auto off timeout
-			if (item) {
-				mode_menu_data.off_timeout	= item+2;
-			} else {
-				mode_menu_data.off_timeout 	= 0;
-			}
+		switch (mode_menu_data.set_param) {
+			case 3:											// Setup auto off timeout
+				if (item) {
+					mode_menu_data.off_timeout	= item + 2;
+				} else {
+					mode_menu_data.off_timeout 	= 0;
+				}
+				break;
+			case 4:											// Setup low power temperature
+				if (item) {
+					uint16_t min_st = min_standby_C;
+					if (!mode_menu_data.celsius)
+						min_st	= celsiusToFahrenheit(min_st);
+					mode_menu_data.low_temp	= item + min_st;
+				} else {
+					mode_menu_data.low_temp = 0;
+				}
+				break;
+			case 5:											// Setup low power timeout
+				mode_menu_data.low_to	= item;
+				break;
+			default:
+				break;
 		}
 		update_screen = 0;									// Force to redraw the screen
 	}
@@ -1071,43 +1140,68 @@ static MODE* 	MMENU_loop(void) {
 		return &mode_menu;
 	update_screen = HAL_GetTick() + 10000;
 
-	if (!mode_menu_data.set_timeout) {
+	if (!mode_menu_data.set_param) {
 		if (button > 0) {									// The button was pressed
 			switch (item) {
-				case 0:										// auto off timeout
-					mode_menu_data.set_timeout = true;
-					uint8_t to = mode_menu_data.off_timeout;
-					if (to > 2) to -=2;
-					RENC_resetEncoder(rEnc, to, 0, 28, 1, 5, false);
-				break;
+				case 0:										// Boost parameters
+					CFG_setup(mode_menu_data.off_timeout, mode_menu_data.buzzer, mode_menu_data.celsius,
+						mode_menu_data.low_temp, mode_menu_data.low_to);
+					return &mode_menu_boost;
 				case 1:										// units C/F
+					if (mode_menu_data.low_temp) {
+						if (mode_menu_data.celsius) {
+							mode_menu_data.low_temp = celsiusToFahrenheit(mode_menu_data.low_temp);
+						} else {
+							mode_menu_data.low_temp = fahrenheitToCelsius(mode_menu_data.low_temp);
+						}
+					}
 					mode_menu_data.celsius	= !mode_menu_data.celsius;
 					break;
 				case 2:										// buzzer ON/OFF
 					mode_menu_data.buzzer	= !mode_menu_data.buzzer;
 					break;
-				case 3:										// Boost parameters
-					CFG_setup(mode_menu_data.off_timeout, mode_menu_data.buzzer, mode_menu_data.celsius);
-					return &mode_menu_boost;
-				case 4:										// save
-					CFG_setup(mode_menu_data.off_timeout, mode_menu_data.buzzer, mode_menu_data.celsius);
+				case 3:										// auto off timeout
+					mode_menu_data.set_param = item;
+					uint8_t to = mode_menu_data.off_timeout;
+					if (to > 2) to -=2;
+					RENC_resetEncoder(rEnc, to, 0, 28, 1, 5, false);
+					break;
+				case 4:										// Standby temperature
+					mode_menu_data.set_param = item;
+					uint16_t st		= mode_menu_data.low_temp;
+					uint16_t min_st = min_standby_C;
+					uint16_t max_st	= max_standby_C;
+					if (!mode_menu_data.celsius) {
+						min_st	= celsiusToFahrenheit(min_st);
+						max_st	= celsiusToFahrenheit(max_st);
+					}
+					if (st > min_st) st -=min_st;
+					RENC_resetEncoder(rEnc, st, 0, max_st, 1, 5, false);
+					break;
+				case 5:										// Standby timeout
+					mode_menu_data.set_param = item;
+					RENC_resetEncoder(rEnc, mode_menu_data.low_to, 5, 240, 1, 5, false);
+					break;
+				case 6:										// save
+					CFG_setup(mode_menu_data.off_timeout, mode_menu_data.buzzer, mode_menu_data.celsius,
+							mode_menu_data.low_temp, mode_menu_data.low_to);
 					CFG_saveConfig();
 					mode_menu_item = 0;
 					return &mode_standby;
-				case 6:										// calibrate
+				case 8:										// tip calibrate
 					mode_menu_item = 6;
 					return &mode_calibrate_menu;
-				case 7:										// activate tips
+				case 9:										// activate tips
 					mode_menu_item = 0;						// We will not return from tip activation mode to this menu
 					return &mode_activate_tips;
-				case 8:										// tune the potentiometer
+				case 10:									// tune the potentiometer
 					mode_menu_item = 0;						// We will not return from tune mode to this menu
 					return &mode_tune;
-				case 9:										// Initialize the configuration
+				case 11:									// Initialize the configuration
 					CFG_initConfigArea();
 					mode_menu_item = 0;						// We will not return from tune mode to this menu
 					return &mode_standby;
-				case 10:									// Tune PID
+				case 12:									// Tune PID
 					return &mode_tune_pid;
 				default:									// cancel
 					CFG_restoreConfig();
@@ -1115,36 +1209,53 @@ static MODE* 	MMENU_loop(void) {
 					return &mode_standby;
 			}
 		}
-	} else {
+	} else {												// Finish modifying  parameter
 		if (button == 1) {
-			mode_menu_data.set_timeout = false;
-			RENC_resetEncoder(rEnc, 0, 0, mode_menu_data.m_len-1, 1, 1, true);
+			item 			= mode_menu_data.set_param;
+			mode_menu_item 	= mode_menu_data.set_param;
+			mode_menu_data.set_param = 0;
+			RENC_resetEncoder(rEnc, mode_menu_item, 0, mode_menu_data.m_len-1, 1, 1, true);
 		}
 	}
 
 	char item_value[8];
 	item_value[1] = '\0';
 	bool modify = false;
-	if (mode_menu_data.set_timeout) {
-		item = 0;
+	if (mode_menu_data.set_param >= 3 && mode_menu_data.set_param <= 5) {
+		item = mode_menu_data.set_param;
 		modify 	= true;
 	}
 	switch (item) {
-		case 0:												// auto off timeout
+		case 1:												// units: C/F
+			item_value[0] = 'F';
+			if (mode_menu_data.celsius)
+				item_value[0] = 'C';
+			break;
+		case 2:												// Buzzer setup
+			if (mode_menu_data.buzzer)
+				sprintf(item_value, "ON");
+			else
+				sprintf(item_value, "OFF");
+			break;
+		case 3:												// auto off timeout
 			if (mode_menu_data.off_timeout) {
 				sprintf(item_value, "%2d min", mode_menu_data.off_timeout);
 			} else {
 				sprintf(item_value, "OFF");
 			}
 			break;
-		case 1:												// units: C/F
-			item_value[0] = 'F';
-			if (mode_menu_data.celsius)
-				item_value[0] = 'C';
+		case 4:												// Standby temperature
+			if (mode_menu_data.low_temp) {
+				sprintf(item_value, "%3d F", mode_menu_data.low_temp);
+				if (mode_menu_data.celsius)
+					item_value[4] = 'C';
+			} else {
+				sprintf(item_value, "OFF");
+			}
 			break;
-		case 2:
-			if (mode_menu_data.buzzer)
-				sprintf(item_value, "ON");
+		case 5:												// Standby timeout
+			if (mode_menu_data.low_temp)
+				sprintf(item_value, "%3d s", mode_menu_data.low_to);
 			else
 				sprintf(item_value, "OFF");
 			break;

@@ -168,6 +168,11 @@ void	DMAIN_msgIdle(void) {
 	DMAIN_status(msg);
 }
 
+void	DMAIN_msgStandby(void) {
+	static char *msg = "Stby";
+	DMAIN_status(msg);
+}
+
 void	DMAIN_msgBoost(void) {
 	static char *msg = "Boost";
 		DMAIN_status(msg);
@@ -414,7 +419,7 @@ void	DPIDK_showGraph(void) {
 		if (++ii >= 80) ii = 0;
 	}
 
-	char max_t_buff[4];
+	char max_t_buff[8];
 	if (max_t > 999) {
 		max_t_buff[0] = '\0';
 	} else {
@@ -502,7 +507,7 @@ void	DISPL_showCalibration(const char* tip_name, uint16_t ref_temp, uint16_t cur
 		sym[0] = 'C';
 	else
 		sym[0] = 'F';
-	char ref_buff[10];
+	char ref_buff[16];
 	sprintf(ref_buff, "Set: %3d", ref_temp);
 
 	uint8_t p_height = 0;										  		// Applied power triangle height
@@ -528,7 +533,7 @@ void	DISPL_showCalibration(const char* tip_name, uint16_t ref_temp, uint16_t cur
 		u8g_DrawBitmap(u8g, 5+width, 33-12, 1, 5, bmDegree);
 		u8g_DrawStr(u8g, 5+8+width, 33, sym);
 		// Show current temperature
-		char temp_buff[4];
+		char temp_buff[10];
 		sprintf(temp_buff, "%3d", current_temp);
 		u8g_DrawBitmap(u8g, 5, 60-15, 1, 15, bmTemperature);
 		u8g_DrawStr(u8g, 16, 60, temp_buff);
@@ -567,7 +572,7 @@ void	DISPL_showCalibManual(const char* tip_name, uint16_t ref_temp, uint16_t cur
 		sym[0] = 'C';
 	else
 		sym[0] = 'F';
-	char ref_buff[10];
+	char ref_buff[16];
 	sprintf(ref_buff, "Set: %3d", ref_temp);
 
 	uint8_t p_height = 0;										  		// Applied power triangle height

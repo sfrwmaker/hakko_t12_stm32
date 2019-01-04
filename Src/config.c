@@ -46,6 +46,8 @@ static void CFG_setDefaults(void) {
 	a_cfg.temp			= 235;
 	a_cfg.tip			= 0;
 	a_cfg.off_timeout	= 0;
+	a_cfg.low_temp		= 0;
+	a_cfg.low_to		= 5;
 	a_cfg.celsius		= true;
 	a_cfg.buzzer		= true;
 	a_cfg.boost_temp	= 0;
@@ -113,6 +115,8 @@ bool		CFG_isBuzzerEnabled(void)					{ return a_cfg.buzzer; 					}
 uint16_t	GFG_tempPresetHuman(void) 					{ return a_cfg.temp;  					}
 uint8_t		CFG_currentTipIndex(void)               	{ return a_cfg.tip; 					}
 uint8_t		CFG_getOffTimeout(void) 					{ return a_cfg.off_timeout; 			}
+uint16_t	CFG_getLowTemp(void)						{ return a_cfg.low_temp;			}
+uint8_t		CFG_getLowTO(void)							{ return a_cfg.low_to;				}
 bool 		CFG_isTipCalibrated(void) 					{ return a_tip.mask & TIP_CALIBRATED; 	}
 uint8_t		CFG_boostTemp(void)							{ return a_cfg.boost_temp;  			}
 uint8_t		CFG_boostDuration(void)						{ return a_cfg.boost_duration; 			}
@@ -141,14 +145,23 @@ uint16_t	CFG_tempHuman(uint16_t temp, int16_t ambient) {
 
 // Translate the temperature from human readable units (Celsius or Fahrenheit) to the internal units
 uint16_t	CFG_human2temp(uint16_t t, int16_t ambient) {
-	if (!a_cfg.celsius)
-		t = fahrenheitToCelsius(t);
-	if (t < temp_minC) t = temp_minC;
-	if (t > temp_maxC) t = temp_maxC;
 	int d = ambient - a_tip.ambient;
+	uint16_t t200 = temp_ref.t200 + d;
+	uint16_t t400 = temp_ref.t400 + d;
+	if (a_cfg.celsius) {
+		if (t < temp_minC) t = temp_minC;
+		if (t > temp_maxC) t = temp_maxC;
+	} else {
+		t200 = celsiusToFahrenheit(t200);
+		t400 = celsiusToFahrenheit(t400);
+		uint16_t tm = celsiusToFahrenheit(temp_minC);
+		if (t < tm) t = tm;
+		tm = celsiusToFahrenheit(temp_maxC);
+		if (t > tm) t = tm;
+	}
 	uint16_t left 	= 0;
 	uint16_t right 	= temp_max;
-	uint16_t temp = map(t, temp_ref.t200+d, temp_ref.t400+d, a_tip.t200, a_tip.t400);
+	uint16_t temp = map(t, t200, t400, a_tip.t200, a_tip.t400);
 
 	if (temp > (left+right)/ 2) {
 		temp -= (right-left) / 4;
@@ -156,7 +169,7 @@ uint16_t	CFG_human2temp(uint16_t t, int16_t ambient) {
 		temp += (right-left) / 4;
 	}
 
-	while (true) {
+	for (uint8_t i = 0; i < 20; ++i) {
 		uint16_t tempH = CFG_tempHuman(temp, ambient);
 		if (tempH == t) {
 			return temp;
@@ -175,7 +188,7 @@ uint16_t	CFG_human2temp(uint16_t t, int16_t ambient) {
 		}
 		temp = new_temp;
 	}
-	return 0;
+	return temp;
 }
 
 // Is it safe to touch the IRON 
@@ -324,9 +337,12 @@ int	CFG_tipList(uint8_t second, TIP_ITEM list[], uint8_t list_len, bool active_o
 }
 
 // Apply main configuration parameters: automatic off timeout, buzzer and temperature units
-void CFG_setup(uint8_t off_timeout, bool buzzer, bool celsius) {
+void CFG_setup(uint8_t off_timeout, bool buzzer, bool celsius, uint16_t low_temp, uint8_t low_to) {
 	a_cfg.off_timeout	= off_timeout;
 	a_cfg.buzzer		= buzzer;
+	a_cfg.low_temp		= low_temp;
+	if (low_to < 5) low_to = 5;
+	a_cfg.low_to		= low_to;
 	if (a_cfg.celsius	!= celsius) {						// When we change units, the temperature should be converted
 		if (celsius) {										// Translate preset temp. from Fahrenheit to Celsius
 			a_cfg.temp	= fahrenheitToCelsius(a_cfg.temp);

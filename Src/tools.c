@@ -44,14 +44,14 @@ uint32_t analogRead(ADC_HandleTypeDef *hadc, uint32_t channel) {
  * The exponential average value; Changes the emp_data: the element of the emp_summ array
  */
 int32_t empAverage(uint32_t *emp_data, uint8_t emp_k, int32_t v) {
-  uint8_t round_v = emp_k >> 1;
-  *emp_data += v - (*emp_data + round_v) / emp_k;
-  return (*emp_data + round_v) / emp_k;
+	uint8_t round_v = emp_k >> 1;
+	*emp_data += v - (*emp_data + round_v) / emp_k;
+	return (*emp_data + round_v) / emp_k;
 }
 
 int32_t empAverageRead(uint32_t emp_data, uint8_t emp_k) {
-  uint8_t round_v = emp_k >> 1;
-  return (emp_data + round_v) / emp_k;
+	uint8_t round_v = emp_k >> 1;
+	return (emp_data + round_v) / emp_k;
 }
 
 /*
