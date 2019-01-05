@@ -1,7 +1,7 @@
 # hakko_t12_stm32
 The soldering iron controller built on stm32 micro controller.
 AC6 - STM32 System Workbench & CubeMX software development tools have been used to bult the project.
-https://sites.google.com/site/sfrwmaker/t12stm32
+Project page: https://www.hackster.io/sfrwmaker/soldering-iron-controller-for-hakko-t12-tips-on-stm32-c50ccc
 Revision history
 22/10 2018
   1. Eeprom size error fixed
