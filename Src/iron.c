@@ -170,12 +170,10 @@ int32_t PID_change(uint8_t p, int32_t k) {
 static int32_t PID_requiredPower(int16_t temp_set, int16_t temp_curr) {
 	if (pid.temp_h0 == 0) {
 		// When the temperature is near the preset one, reset the PID and prepare iterative formulae
-		if ((temp_set - temp_curr) < 30) {
-			if (!pid.pid_iterate) {
-				pid.pid_iterate = true;
-				pid.power 		= 0;
-				pid.i_summ 		= 0;
-			}
+		if (!pid.pid_iterate && (temp_set - temp_curr) < 30) {
+			pid.pid_iterate = true;
+			pid.power 		= 0;
+			pid.i_summ 		= 0;
 		}
 		pid.i_summ += temp_set - temp_curr;				// first, use the direct formulae, not the iterate process
 		pid.power = pid.Kp*(temp_set - temp_curr) + pid.Ki * pid.i_summ;
@@ -188,9 +186,9 @@ static int32_t PID_requiredPower(int16_t temp_set, int16_t temp_curr) {
 	}
 	if (pid.pid_iterate) pid.temp_h0 = pid.temp_h1;
 	pid.temp_h1 = temp_curr;
-	// prepare the power to delete by denominator, round the result
+	// prepare the power to divide by denominator, round the result
 	int32_t pwr = pid.power + (1 << (pid.denominator_p-1));
-	pwr >>= pid.denominator_p;							// delete by the denominator
+	pwr >>= pid.denominator_p;							// divide by the denominator
 	return pwr;
 }
 
