@@ -124,6 +124,7 @@ static bool adcStart(t_ADC_mode mode) {
 		sConfig.SamplingTime 	= ADC_SAMPLETIME_71CYCLES_5;
 		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc1, &sConfig))	return false;
 		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc2, &sConfig))	return false;
+		sConfig.Channel 		= ADC_CHANNEL_6;			// AMBIENT_TEMP
 		sConfig.Rank 			= ADC_REGULAR_RANK_2;
 		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc1, &sConfig))	return false;
 		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc2, &sConfig))	return false;
@@ -133,7 +134,6 @@ static bool adcStart(t_ADC_mode mode) {
 		sConfig.SamplingTime 	= ADC_SAMPLETIME_71CYCLES_5;
 		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc1, &sConfig))	return false;
 		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc2, &sConfig))  return false;
-		sConfig.Channel 		= ADC_CHANNEL_6;			// AMBIENT_TEMP
 		sConfig.Rank 			= ADC_REGULAR_RANK_2;
 		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc1, &sConfig))	return false;
 		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc2, &sConfig))	return false;
@@ -169,11 +169,16 @@ extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 	HAL_ADC_Stop(&hadc2);
 	if (adc_mode == ADC_TEMP) {
 		uint32_t iron_temp	= 0;
-		for (uint8_t i = 0; i < 2*ADC_CONV; ++i) {
-			iron_temp	+= buff[i];
+		uint32_t ambient	= 0;
+		for (uint8_t i = 0; i < 2*ADC_CONV; i += 4) {
+			iron_temp	+= buff[i] 		+ buff[i+1];
+			ambient		+= buff[i+2]	+ buff[i+3];
 		}
-		iron_temp 	+= ADC_CONV;							// Round the result
-		iron_temp 	/= ADC_CONV*2;
+		iron_temp 	+= ADC_CONV/2;							// Round the result
+		iron_temp 	/= ADC_CONV;
+		ambient		+= ADC_CONV/2;
+		ambient		/= ADC_CONV;
+		core.iron.updateAmbient(ambient);
 
 		if (core.iron.isIronConnected()) {
 			if (was_disconnected) {
@@ -188,17 +193,12 @@ extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 		}
 	} else if (adc_mode == ADC_CURRENT) {
 		uint32_t iron_curr	= 0;
-		uint32_t ambient	= 0;
-		for (uint8_t i = 0; i < 2*ADC_CONV; i += 4) {
-			iron_curr	+= buff[i] 		+ buff[i+1];
-			ambient		+= buff[i+2]	+ buff[i+3];
+		for (uint8_t i = 0; i < 2*ADC_CONV; ++i) {
+			iron_curr	+= buff[i];
 		}
 
 		if (TIM2->CCR1)										// If IRON has been powered
 			core.iron.updateIronCurrent(iron_curr);
-		ambient += ADC_CONV/2;
-		ambient	/= ADC_CONV;
-		core.iron.updateAmbient(ambient);
 	}
 	adc_mode = ADC_IDLE;
 }
