@@ -176,14 +176,15 @@ static const char* k_proto[3] = {
 	"Kd = %5d"
 };
 
-DSPL::DSPL(const u8g2_cb_t *rotation) : U8G2() {
+void DSPL::init(const u8g2_cb_t *rotation) {
 	u8x8_msg_cb msg_cb = u8x8_byte_stm32_hw_spi;
 	if (HAL_OK == HAL_I2C_IsDeviceReady(&hi2c1, OLED_I2C_ADDR<<1, 2, 2)) {
 		msg_cb = u8x8_byte_stm32_hw_i2c;
 	}
-	u8g2_Setup_sh1106_128x64_noname_f(&u8g2, rotation, msg_cb, u8x8_gpio_and_delay_stm32);
-//	u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, rotation, msg_cb, u8x8_gpio_and_delay_stm32);
+//	u8g2_Setup_sh1106_128x64_noname_f(&u8g2, rotation, msg_cb, u8x8_gpio_and_delay_stm32);
+	u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, rotation, msg_cb, u8x8_gpio_and_delay_stm32);
 //	u8g2_Setup_ssd1309_128x64_noname2_f(&u8g2, rotation, msg_cb, u8x8_gpio_and_delay_stm32);
+	begin();
 }
 
 void DSPL::status(const char *msg) {

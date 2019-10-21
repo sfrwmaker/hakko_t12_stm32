@@ -7,7 +7,6 @@
 
 #include <string.h>
 #include "core.h"
-#include "hw.h"
 #include "mode.h"
 #include "stat.h"
 #include "oled.h"
@@ -49,7 +48,7 @@ static	MMENU			main_menu(&core, &boost_setup, &calib_menu, &activate, &tune, &pi
 static	MODE*           pMode = &standby_iron;
 
 bool HW::init(void) {
-	dspl.begin();
+	dspl.init(U8G2_R2);
 	iron.init();
 	encoder.addButton(ENCODER_B_GPIO_Port, ENCODER_B_Pin);
 	bool cfg_init = 	cfg.init();
