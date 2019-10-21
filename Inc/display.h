@@ -14,7 +14,8 @@
 
 class DSPL : public U8G2 {
 	public:
-		DSPL(const u8g2_cb_t *rotation);
+		DSPL(void)											{ }
+		void		init(const u8g2_cb_t *rotation);
 		void		mainInit(void)							{ msg_buff[0] = tip_name[0] = 0; }
 		void		status(const char *msg);
 		void 		msgClean(void);

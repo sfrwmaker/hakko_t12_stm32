@@ -21,7 +21,7 @@ extern I2C_HandleTypeDef 	hi2c1;
 
 class HW {
 	public:
-		HW(void) : cfg(&hi2c1), dspl(U8G2_R2),
+		HW(void) : cfg(&hi2c1),
 			encoder(ENCODER_R_GPIO_Port, ENCODER_R_Pin, ENCODER_L_GPIO_Port, ENCODER_L_Pin)		{ }
 		bool		init(void);
 		CFG			cfg;
