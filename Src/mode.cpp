@@ -53,6 +53,7 @@ MODE* MSTBY_IRON::loop(void) {
     if (button == 1) {										// The button pressed shortly
     	if (mode_spress) return mode_spress;
     } else if (button == 2) {								// The button was pressed for a long time
+    	BUZZER::shortBeep();
     	if (mode_lpress) return mode_lpress;
     }
 
@@ -118,15 +119,15 @@ void MWORK_IRON::init(void) {
 	pIron->switchPower(true);
 }
 
-void MWORK_IRON::adjustPresetTemp(uint16_t presetTemp) {
+void MWORK_IRON::adjustPresetTemp(void) {
 	CFG*	pCFG	= &pCore->cfg;
 	IRON*	pIron	= &pCore->iron;
 
-	uint16_t temp     	= pIron->temp();
+	uint16_t presetTemp	= pIron->presetTemp();
+	uint16_t tempH     	= pCFG->tempPresetHuman();
 	int16_t  ambient	= pIron->ambientTemp();
-	uint16_t tempH  	= pCFG->tempHuman(temp, ambient);
-	if (tempH != presetTemp) {								// The ambient temperature have changed, we need to adjust preset temperature
-		temp			= pCFG->human2temp(presetTemp, ambient);
+	uint16_t temp  		= pCFG->human2temp(tempH, ambient);	// Expected temperature of IRON in internal units
+	if (temp != presetTemp) {								// The ambient temperature have changed, we need to adjust preset temperature
 		pIron->adjust(temp);
 	}
 }
@@ -167,7 +168,6 @@ void MWORK_IRON::hwTimeout(uint16_t low_temp, bool tilt_active) {
 	}
 }
 
-// Use applied power analysis to automatically power-off the IRON
 void MWORK_IRON::swTimeout(uint16_t temp, uint16_t temp_set, uint16_t temp_setH, uint32_t td, uint32_t pd, uint16_t ap, int16_t ip) {
 	DSPL*	pD		= &pCore->dspl;
 	CFG*	pCFG	= &pCore->cfg;
@@ -183,7 +183,6 @@ void MWORK_IRON::swTimeout(uint16_t temp, uint16_t temp_set, uint16_t temp_setH,
 			time_to_return 		= 0;
 			auto_off_notified 	= false;			// Initialize the idle state power
 		}
-		adjustPresetTemp(temp_setH);
 	} else {										// The IRON is is its idle state
 		if (!time_to_return) {
 			time_to_return = HAL_GetTick() + pCFG->getOffTimeout() * 60000;
@@ -259,7 +258,7 @@ MODE* MWORK_IRON::loop(void) {
 	}
 
 	// If the automatic power-off feature is enabled, check the IRON status
-	if (pCFG->getOffTimeout() && ready) {
+	if (pCFG->getOffTimeout() && ready && !ready_clear) {	// The IRON has reaches the preset temperature and 'Ready' message is already cleared
 		if (low_temp) {										// Use hardware tilt switch to turn low power mode
 			hwTimeout(low_temp, tilt_active);
 		} else {											// Or use software mode to switch to power OFF mode
@@ -277,10 +276,9 @@ MODE* MWORK_IRON::loop(void) {
 				}
 			}
 		}
-	} else {
-		pD->msgON();
-		adjustPresetTemp(temp_setH);
 	}
+	if (!lowpower_mode)
+		adjustPresetTemp();
 
 	if (ready && ready_clear && HAL_GetTick() >= ready_clear) {
 		ready_clear = 0;
@@ -442,7 +440,10 @@ MODE* MTACT::loop(void) {
 	uint8_t	button		= pEnc->buttonStatus();
 
 	if (button == 1) {										// The button pressed
-		pCFG->toggleTipActivation(tip_index);
+		if (!pCFG->toggleTipActivation(tip_index)) {
+			pD->errorMessage("EEPROM\nwrite\nerror");
+			return 0;
+		}
 		update_screen = 0;									// Force redraw the screen
 	} else if (button == 2) {
 		return mode_lpress;
@@ -1369,6 +1370,7 @@ MODE* MTPID::loop(void) {
 			on = !on;
 			pIron->switchPower(on);
 			if (on) pD->pidInit();							// Reset display graph history
+			BUZZER::shortBeep();
 		}
 
 		if (old_index != index) {

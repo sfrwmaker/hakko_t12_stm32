@@ -25,24 +25,34 @@
 #define	 NO_TIP_CHUNK	255									// The flag showing that the tip was not found in the EEPROM
 
 // Initialize the configuration. Find the actual record in the EEPROM.
-bool CFG::init(void) {
-	EEPROM::init();
-
+CFG_STATUS CFG::init(void) {
 	tip_table = (TIP_TABLE*)malloc(sizeof(TIP_TABLE) * TIPS::loaded());
 	uint8_t tips_loaded = 0;
-	if (tip_table) {
-		tips_loaded = buildTipTable(tip_table);
-	}
 
-	if (loadRecord(&a_cfg)) {
-		correctConfig(&a_cfg);
+	if (EEPROM::init()) {
+		if (tip_table) {
+			tips_loaded = buildTipTable(tip_table);
+		}
+
+		if (loadRecord(&a_cfg)) {
+			correctConfig(&a_cfg);
+		} else {
+			setDefaults();
+		}
+
+		selectTip(a_cfg.tip);								// Load tip configuration data into a_tip variable
+		CFG_CORE::syncConfig();								// Save spare configuration
+		if (tips_loaded > 0) {
+			return CFG_OK;
+		} else {
+			return CFG_NO_TIP;
+		}
 	} else {
 		setDefaults();
+		selectTip(0);
+		CFG_CORE::syncConfig();
 	}
-	
-	selectTip(a_cfg.tip);									// Load tip configuration data into a_tip variable
-	CFG_CORE::syncConfig();									// Save spare configuration
-	return tips_loaded > 0;
+	return CFG_READ_ERROR;
 }
 
 // Load calibration data of the tip from EEPROM. If the tip is not calibrated, initialize the calibration data with the default values
@@ -170,6 +180,7 @@ void CFG::savePID(PIDparam &pp) {
 	a_cfg.pid_Ki	= pp.Ki;
 	a_cfg.pid_Kd	= pp.Kd;
 	saveRecord(&a_cfg);
+	CFG_CORE::syncConfig();
 }
 
 // Save new IRON tip calibration data to the EEPROM only. Do not change active configuration
@@ -204,13 +215,13 @@ void CFG::saveTipCalibtarion(uint8_t index, uint16_t temp[4], uint8_t mask, int8
 }
 
 // Toggle (activate/deactivate) tip activation flag. Do not change active tip configuration
-void CFG::toggleTipActivation(uint8_t index) {
-	if (!tip_table)	return;
+bool CFG::toggleTipActivation(uint8_t index) {
+	if (!tip_table)	return false;
 	TIP tip;
 	uint8_t tip_chunk_index = tip_table[index].tip_chunk_index;
 	if (tip_chunk_index == NO_TIP_CHUNK) {					// This tip data is not in the EEPROM, it was not active!
 		tip_chunk_index = freeTipChunkIndex();
-		if (tip_chunk_index == NO_TIP_CHUNK) return;		// Failed to find free slot to save tip configuration
+		if (tip_chunk_index == NO_TIP_CHUNK) return false;	// Failed to find free slot to save tip configuration
 		const char *name = TIPS::name(index);
 		if (name) {
 			strncpy(tip.name, name, tip_name_sz);			// Initialize tip name
@@ -218,6 +229,7 @@ void CFG::toggleTipActivation(uint8_t index) {
 			if (saveTipData(&tip, tip_chunk_index) == EPR_OK) {
 				tip_table[index].tip_chunk_index	= tip_chunk_index;
 				tip_table[index].tip_mask			= tip.mask;
+				return true;
 			}
 		}
 	} else {												// Tip configuration data exists in the EEPROM
@@ -225,9 +237,11 @@ void CFG::toggleTipActivation(uint8_t index) {
 			tip.mask ^= TIP_ACTIVE;
 			if (saveTipData(&tip, tip_chunk_index) == EPR_OK) {
 				tip_table[index].tip_mask			= tip.mask;
+				return true;
 			}
 		}
 	}
+	return false;
 }
 
  // Build the tip list starting from the previous tip
@@ -524,9 +538,9 @@ void TIP_CFG::resetTipCalibration(void) {
 // Apply default calibration parameters of the tip; Prevent overheating of the tip
 void TIP_CFG::defaultCalibration(void) {
 	tip.calibration[0]	=  680;
-	tip.calibration[0]	=  964;
-	tip.calibration[0]	= 1290;
-	tip.calibration[0]	= 1600;
+	tip.calibration[1]	=  964;
+	tip.calibration[2]	= 1290;
+	tip.calibration[3]	= 1600;
 	tip.ambient			= default_ambient;					// vars.cpp
 	tip.mask			= TIP_ACTIVE;
 }

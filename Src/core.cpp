@@ -23,7 +23,6 @@ extern TIM_HandleTypeDef	htim2;
 typedef enum { ADC_IDLE, ADC_CURRENT, ADC_TEMP } t_ADC_mode;
 volatile static t_ADC_mode	adc_mode = ADC_IDLE;
 volatile static uint16_t	buff[ADC_BUFF_SZ];
-volatile static bool		was_disconnected	= true;
 
 const static uint16_t		min_iron_pwm	= 2;			// This power should be applied to check the current through the IRON
 const static uint16_t  		max_iron_pwm	= 1980;			// Max value should be less than TIM2.CHANNEL3 value by 10
@@ -47,18 +46,29 @@ static	MAUTOPID		auto_pid_tune(&core);
 static	MMENU			main_menu(&core, &boost_setup, &calib_menu, &activate, &tune, &pid_tune);
 static	MODE*           pMode = &standby_iron;
 
-bool HW::init(void) {
+
+CFG_STATUS HW::init(void) {
 	dspl.init(U8G2_R2);
 	iron.init();
 	encoder.addButton(ENCODER_B_GPIO_Port, ENCODER_B_Pin);
-	bool cfg_init = 	cfg.init();
-	PIDparam pp   = 	cfg.pidParams();					// load IRON PID parameters
+	CFG_STATUS cfg_init = 	cfg.init();
+	PIDparam pp   		= 	cfg.pidParams();				// load IRON PID parameters
 	iron.load(pp);
 	return cfg_init;
 }
 
 extern "C" void setup(void) {
-	if (!core.init()) pMode = &activate;					// No tip configured, run tip activation menu
+	switch (core.init()) {
+		case	CFG_NO_TIP:
+			pMode	= &activate;							// No tip configured, run tip activation menu
+			break;
+		case	CFG_READ_ERROR:								// Failed to read EEPROM
+			core.dspl.errorMessage("EEPROM\nread\nerror");
+			pMode	= &fail;
+			break;
+		default:
+			break;
+	}
 
 	HAL_ADCEx_Calibration_Start(&hadc1);					// Calibrate both ADCs
 	HAL_ADCEx_Calibration_Start(&hadc2);
@@ -73,7 +83,7 @@ extern "C" void setup(void) {
 	work_iron.setup(&standby_iron, &standby_iron, &boost);
 	boost.setup(&work_iron, &work_iron, &work_iron);
 	select.setup(&standby_iron, &activate, &standby_iron);
-	activate.setup(&standby_iron, &standby_iron, &standby_iron);
+	activate.setup(&standby_iron, &standby_iron, &main_menu);
 	calib_auto.setup(&standby_iron, &standby_iron, &standby_iron);
 	calib_manual.setup(&calib_menu, &standby_iron, &standby_iron);
 	calib_menu.setup(&standby_iron, &standby_iron, &standby_iron);
@@ -180,14 +190,9 @@ extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 		core.iron.updateAmbient(ambient);
 
 		if (core.iron.isIronConnected()) {
-			if (was_disconnected) {
-				core.iron.reset();
-				was_disconnected = false;
-			}
 			uint16_t iron_power = core.iron.power(iron_temp);
 			TIM2->CCR1	= constrain(iron_power, min_iron_pwm, max_iron_pwm);
 		} else {
-			was_disconnected = true;
 			TIM2->CCR1	= min_iron_pwm;						// Always supply minimum power to the IRON to check connectivity
 		}
 	} else if (adc_mode == ADC_CURRENT) {

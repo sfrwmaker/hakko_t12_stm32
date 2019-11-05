@@ -34,15 +34,21 @@ void RENC::reset(int16_t initPos, int16_t low, int16_t upp, uint8_t inc, uint8_t
 }
 
 uint8_t	RENC::buttonStatus(void) {
-	/*
-	if (renc->bpt > 0) {								// The button was pressed
-		if ((HAL_GetTick() - renc->bpt) > RENC_longPress) {
-			renc->mode 	= 0;
-			renc->bpt 	= 0;
-			return 2;									// Long press
+	if (bpt > 0) {											// The button was pressed
+		if ((HAL_GetTick() - bpt) >= def_over_press) {
+			bpt = 0;
+			i_b_rel	= false;
+			mode = 0;
+			return 0;
+		}
+		if ((HAL_GetTick() - bpt) >= long_press) {
+			mode 	= 0;
+			if (i_b_rel)									// Already long press event was detected
+				return 0;
+			i_b_rel	= true;									// Ignore button next release event
+			return 2;										// Long press
 		}
 	}
-	*/
 	uint8_t m = mode; mode = 0;
 	return m;
 }
@@ -55,22 +61,31 @@ bool RENC::write(int16_t initPos)	{
 	return false;
 }
 
-void RENC::buttonIntr(void) {                 		// Interrupt function, called when the button status changed
+void RENC::buttonIntr(void) {                 				// Interrupt function, called when the button status changed
 	uint32_t now_t = HAL_GetTick();
 	bool keyUp = (HAL_GPIO_ReadPin(b_port, b_pin) == GPIO_PIN_SET);
-	if (!keyUp) {                                  	// The button has been pressed
-		if ((bpt == 0) || (now_t - bpt > over_press)) bpt = now_t;
-	} else {										// The button was released
-		if (bpt > 0) {
-			if ((now_t - bpt) < bounce)
-				return;								// Prevent bouncing
+	if (!keyUp) {                                  			// The button has been pressed
+		if ((bpt == 0) || (now_t - bpt > over_press)) {
+			bpt 	= now_t;
+			i_b_rel = false;
+		}
+	} else {												// The button was released
+		if (bpt > 0) {										// The button has been pressed
+			if ((now_t - bpt) < bounce) {
+				i_b_rel = false;
+				return;										// Prevent bouncing
+			}
 			else if ((now_t - bpt) < long_press)
-				mode = 1; 							// short press
+				mode = 1; 									// short press
 			else if ((now_t - bpt) < over_press)
-				mode = 2;                     		// long press
+				mode = 2;                     				// long press
 			else
-				mode = 0;							// over press
+				mode = 0;									// over press
 			bpt = 0;
+		}
+		if (i_b_rel) {
+			i_b_rel = false;
+			mode = 0;
 		}
 	}
 }

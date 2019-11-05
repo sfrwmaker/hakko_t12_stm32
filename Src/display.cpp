@@ -153,23 +153,6 @@ static const uint8_t R[] = {
 	0xfc, 0x1f, 0xc0, 0xfc, 0x0f, 0xe0, 0xfc, 0x0f, 0xe0
 };
 
-/*
-static const uint8_t fan[4][32] = {
-   {0x07, 0x00, 0x07, 0x00, 0x03, 0x80, 0x03, 0x80, 0x01, 0x80, 0x01, 0x80,
-    0x01, 0x80, 0x03, 0xc0, 0x03, 0xc0, 0x0f, 0x70, 0x1c, 0x3b, 0x38, 0x1f,
-    0x38, 0x0f, 0x70, 0x00, 0x38, 0x00, 0x00, 0x00 },
-   {0x00, 0xc0, 0x00, 0xe0, 0x00, 0x70, 0x00, 0x70, 0x00, 0x60, 0x00, 0xc0,
-    0x01, 0xc0, 0x2b, 0x80, 0x7f, 0xc0, 0xf1, 0x80, 0xe0, 0xc0, 0x00, 0xe0,
-    0x00, 0x70, 0x00, 0x78, 0x00, 0x38, 0x00, 0x18 },
-   {0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x0e, 0x20, 0x1e, 0x78, 0x38,
-    0xfd, 0x70, 0xd7, 0xe0, 0x03, 0xc0, 0x01, 0x80, 0x01, 0x00, 0x01, 0x80,
-    0x03, 0x80, 0x03, 0x80, 0x01, 0xc0, 0x00, 0xe0 },
-   {0x00, 0x00, 0x20, 0x00, 0xf8, 0x00, 0xfc, 0x00, 0xde, 0x00, 0x06, 0x03,
-    0x03, 0x8f, 0x01, 0xff, 0x03, 0xfe, 0x03, 0x80, 0x06, 0x00, 0x0e, 0x00,
-    0x1c, 0x00, 0x3c, 0x00, 0x3e, 0x00, 0x0e, 0x00 }
-};
-*/
-
 static const char* k_proto[3] = {
 	"Kp = %5d",
 	"Ki = %5d",
@@ -624,7 +607,7 @@ void DSPL::calibShow(const char* tip_name, uint16_t ref_temp, uint16_t current_t
 	// Show internal temperature bar
 	int_temp_pcnt = constrain(int_temp_pcnt, 0, 100);
 	if (int_temp_pcnt > 1) {
-		U8G2::drawBox(14, 61, int_temp_pcnt, 3);
+		U8G2::drawBox(14, 62, int_temp_pcnt, 2);
 	}
 	U8G2::sendBuffer();
 }
@@ -780,12 +763,42 @@ void DSPL::menuItemShow(const char* title, const char* item, const char* value, 
 
 void DSPL::errorShow(void) {
 	U8G2::clearBuffer();
-	U8G2::drawBitmap(10, 20, 2, 23, E);
-	U8G2::drawBitmap(10+18, 20, 3, 23, R);
-	U8G2::drawBitmap(10+18+20, 20, 3, 23, R);
-	U8G2::drawBitmap(10+18+20+20, 20, 3, 23, O);
-	U8G2::drawBitmap(10+18+20+20+26, 20, 3, 23, R);
+	if (err_msg[0] == '\0') {											// No error message specified, show big "ERROR"
+		U8G2::drawBitmap(10, 20, 2, 23, E);
+		U8G2::drawBitmap(10+18, 20, 3, 23, R);
+		U8G2::drawBitmap(10+18+20, 20, 3, 23, R);
+		U8G2::drawBitmap(10+18+20+20, 20, 3, 23, O);
+		U8G2::drawBitmap(10+18+20+20+26, 20, 3, 23, R);
+	} else {
+		U8G2::setFont(u8g_font_profont15r);
+		uint8_t len = strlen(err_msg);
+		uint8_t line = 0;
+		for (uint8_t start = 0; start < len; ) {
+			uint8_t finish = start+1;
+			while (++finish < len && err_msg[finish] != '\n');
+			if (finish < len) {
+				err_msg[finish] = '\0';
+				uint8_t width = U8G2::getStrWidth(&err_msg[start]);
+				if (width < d_width) {
+					U8G2::drawStr((d_width-width)/2, line*13, &err_msg[start]);
+				} else {
+					U8G2::drawStr(0, line*13, &err_msg[start]);
+				}
+				++line;
+				err_msg[finish] = '\n';
+				start = finish + 1;
+			}
+		}
+	}
 	U8G2::sendBuffer();
+}
+
+void DSPL::errorMessage(const char *msg) {
+	if (msg[0]) {
+		strncpy(err_msg, msg, 40);
+	} else {
+		err_msg[0] = '\0';
+	}
 }
 
 void DSPL::debugShow(uint16_t current, uint16_t temp, uint16_t ambient) {

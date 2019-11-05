@@ -10,7 +10,7 @@
 #include "eeprom.h"
 #include "iron_tips.h"
 
-void EEPROM::init(void) {
+bool EEPROM::init(void) {
 	// Read all the records in the EEPROM and find min and max record IDs
 	uint32_t 	min_rec_ID 	= 0xffffffff;
 	uint16_t 	min_rec_ch 	= 0;
@@ -18,6 +18,12 @@ void EEPROM::init(void) {
 	uint16_t 	max_rec_ch 	= 0;
 	uint16_t 	records 	= 0;
 
+	if (HAL_OK != HAL_I2C_IsDeviceReady(hi2c, eeprom_address<<1, 2, 2)) {
+		can_write = false;
+		return can_write;
+	}
+
+	can_write = true;
 	for (uint16_t chunk = 0; chunk < cfg_chunks; ++chunk) {
 		if (readChunk(chunk)) {
 			RECORD* cfg = (RECORD*)data;
@@ -35,14 +41,14 @@ void EEPROM::init(void) {
 				break;
 			}
 		} else {
+			can_write	= false;
 			break;
 		}
 	}
 
 	if (records == 0) {
-		w_chunk = r_chunk = 0;
-		can_write = true;
-	    return;
+		w_chunk		= r_chunk = 0;
+	    return can_write;
 	}
 
 	r_chunk = max_rec_ch;
@@ -52,7 +58,7 @@ void EEPROM::init(void) {
 	} else {
 		w_chunk = min_rec_ch;
 	}
-	can_write = true;
+	return can_write;
 }
 
 uint16_t EEPROM::tipDataTotal(void) {
