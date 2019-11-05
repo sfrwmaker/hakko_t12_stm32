@@ -60,7 +60,7 @@ class MWORK_IRON : public MODE {
 		virtual void	init(void);
 		virtual MODE*	loop(void);
 	private:
-		void 			adjustPresetTemp(uint16_t presetTemp);
+		void 			adjustPresetTemp(void);
 		void			hwTimeout(uint16_t low_temp, bool tilt_active);
 		void 			swTimeout(uint16_t temp, uint16_t temp_set, uint16_t temp_setH, uint32_t td, uint32_t pd, uint16_t ap, int16_t ip);
 		EMP_AVERAGE  	idle_pwr;							// Exponential average value for idle power

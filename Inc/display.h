@@ -47,11 +47,13 @@ class DSPL : public U8G2 {
 		void 		tipListShow(const char* title,  TIP_ITEM list[], uint8_t list_len, uint8_t index, bool name_only);
 		void 		menuItemShow(const char* title, const char* item, const char* value, bool modify);
 		void 		errorShow(void);
+		void		errorMessage(const char *msg);
 		void 		debugShow(uint16_t current, uint16_t temp, uint16_t ambient);
 		void		showVersion(void);
 	private:
 		char      	msg_buff[8]	 = {0};                		// the buffer for the message in top right corner
 		char      	tip_name[10] = {0};                		// the buffer for tip name
+		char		err_msg[40]		= {0};					// the buffer of error message
 		// PID tune data
 		uint32_t	default_mode = 0;						// The time in ms to return to the default mode
 		char		modified_value[25]	= {0};				// The buffer to show current value of being modified coefficient

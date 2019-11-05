@@ -35,13 +35,14 @@ class RENC {
 		volatile uint32_t 	changed	= 0;                // Time in ms when the value was changed
 		volatile int16_t  	pos		= 0;                // Encoder current position
 		volatile bool       s_up	= false;			// The status of the secondary channel
+		volatile bool		i_b_rel	= false;			// Ignore button release event
 		GPIO_TypeDef* 		b_port	= 0;				// The PORT of the press button
 		GPIO_TypeDef*     	m_port	= 0;				// The PORT of the main channel
 		GPIO_TypeDef*		s_port	= 0;          		// The PORT of the secondary channel
 		uint16_t			b_pin	= 0;				// The PIN number of the button
 		uint16_t			m_pin	= 0;				// The PIN number of the main channel
 		uint16_t			s_pin	= 0;	    		// The PIN number of the secondary channel
-		const uint16_t 		long_press		= 1200;		// If the button was pressed more that this timeout, we assume the long button press
+		const uint16_t 		long_press		= 1500;		// If the button was pressed more that this timeout, we assume the long button press
 		const uint16_t		bounce			= 50;       // Bouncing timeout (ms)
 		const uint16_t		fast_timeout	= 300;		// Time in ms to change encoder quickly
 		const uint16_t		def_over_press	= 2500;		// Default value for button overpress timeout (ms)

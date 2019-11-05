@@ -15,6 +15,8 @@
 #include "pid.h"
 #include "buzzer.h"
 
+typedef enum cfg_status {CFG_OK = 0, CFG_NO_TIP, CFG_READ_ERROR} CFG_STATUS;
+
 /*
  * The actual configuration record is loaded from the EEPROM chunk into a_cfg variable
  * The spare copy of the  configuration record is preserved into s_cfg variable
@@ -84,7 +86,7 @@ class TIP_CFG {
 class CFG : public EEPROM, public CFG_CORE, public TIP_CFG, public BUZZER {
 	public:
 		CFG(I2C_HandleTypeDef* pHi2c): EEPROM(pHi2c) 	{ }
-		bool		init(void);
+		CFG_STATUS	init(void);
 		uint16_t 	tipChunksTotal(void);
 		uint16_t	tempHuman(uint16_t temp, int16_t ambient);
 		uint16_t	human2temp(uint16_t temp, int16_t ambient);
@@ -92,7 +94,7 @@ class CFG : public EEPROM, public CFG_CORE, public TIP_CFG, public BUZZER {
 		const char* tipName(void);
 		void     	changeTip(uint8_t index);
 		void		saveTipCalibtarion(uint8_t index, uint16_t temp[4], uint8_t mask, int8_t ambient);
-		void		toggleTipActivation(uint8_t index);
+		bool		toggleTipActivation(uint8_t index);
 		int			tipList(uint8_t second, TIP_ITEM list[], uint8_t list_len, bool active_only);
 		void		saveConfig(void);
 		void		savePID(PIDparam &pp);

@@ -23,7 +23,7 @@ class HW {
 	public:
 		HW(void) : cfg(&hi2c1),
 			encoder(ENCODER_R_GPIO_Port, ENCODER_R_Pin, ENCODER_L_GPIO_Port, ENCODER_L_Pin)		{ }
-		bool		init(void);
+		CFG_STATUS	init(void);
 		CFG			cfg;
 		DSPL		dspl;
 		IRON		iron;

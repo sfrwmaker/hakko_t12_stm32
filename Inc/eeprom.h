@@ -38,7 +38,7 @@ typedef enum tip_io_status {EPR_OK = 0, EPR_IO, EPR_CHECKSUM, EPR_INDEX} TIP_IO_
 class EEPROM {
 	public:
 		EEPROM(I2C_HandleTypeDef* pHi2c)				{ hi2c = pHi2c; }
-		void			init();
+		bool			init();
 		uint16_t 		tipDataTotal(void);
 		bool			loadRecord(RECORD* config_record);
 		bool 			saveRecord(RECORD* config_record);	// Modifies the record: increment the ID and calculate CRC
