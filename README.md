@@ -6,6 +6,7 @@ Project page: https://www.hackster.io/sfrwmaker/soldering-iron-controller-for-ha
 Revision history
 
 11/09/2019
+
 Tip connection issue has been fixed. Capacitor C8 has been removed from schematics.
 
 11/05/2019
