@@ -33,8 +33,8 @@ class IRON_HW {
 		SWITCH 		sw_iron;								// IRON tilt switch
 		const uint8_t	ambient_emp_coeff	= 10;			// Exponential average coefficient for ambient temperature
 		const uint8_t	iron_emp_coeff		= 8;			// Exponential average coefficient for IRON temperature
-		const uint16_t	iron_off_value		= 520;
-		const uint16_t	iron_on_value		= 800;
+		const uint16_t	iron_off_value		= 500;
+		const uint16_t	iron_on_value		= 1000;
 		const uint8_t	iron_sw_len			= 3;			// Exponential coefficient of current through the IRON switch
 		const uint8_t	sw_off_value		= 30;
 		const uint8_t	sw_on_value			= 60;
