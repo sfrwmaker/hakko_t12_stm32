@@ -4,6 +4,9 @@ AC6 - STM32 System Workbench & CubeMX software development tools have been used 
 Project page: https://www.hackster.io/sfrwmaker/soldering-iron-controller-for-hakko-t12-tips-on-stm32-c50ccc
 
 Revision history
+11/09/2019
+Tip connection issue has been fixed. Capacitor C8 has been removed from schematics.
+
 11/05/2019
 
 New Encoder algorithm implemented, just press and hold the encoder button for long press
