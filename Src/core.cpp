@@ -24,7 +24,7 @@ typedef enum { ADC_IDLE, ADC_CURRENT, ADC_TEMP } t_ADC_mode;
 volatile static t_ADC_mode	adc_mode = ADC_IDLE;
 volatile static uint16_t	buff[ADC_BUFF_SZ];
 
-const static uint16_t		min_iron_pwm	= 2;			// This power should be applied to check the current through the IRON
+const static uint16_t		min_iron_pwm	= 3;			// This power should be applied to check the current through the IRON
 const static uint16_t  		max_iron_pwm	= 1980;			// Max value should be less than TIM2.CHANNEL3 value by 10
 
 static HW		core;										// Hardware core (including all device instances)
