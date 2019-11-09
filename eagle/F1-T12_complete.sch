@@ -13582,7 +13582,6 @@ OMNIDIRECTIONAL</description>
 <part name="GND9" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="GND" device=""/>
 <part name="GND10" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="GND" device=""/>
 <part name="C7" library="rcl" library_urn="urn:adsk.eagle:library:334" deviceset="C-EU" device="025-025X050" package3d_urn="urn:adsk.eagle:package:23629/2" value="100n"/>
-<part name="C8" library="rcl" library_urn="urn:adsk.eagle:library:334" deviceset="C-EU" device="025-025X050" package3d_urn="urn:adsk.eagle:package:23629/2" value="1uF"/>
 <part name="P+4" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="+24V" device=""/>
 <part name="GND11" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="GND" device=""/>
 <part name="GND12" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="GND" device=""/>
@@ -13738,10 +13737,6 @@ OMNIDIRECTIONAL</description>
 <instance part="C7" gate="G$1" x="101.6" y="-5.08" smashed="yes">
 <attribute name="NAME" x="103.124" y="-4.699" size="1.778" layer="95"/>
 <attribute name="VALUE" x="103.124" y="-9.779" size="1.778" layer="96"/>
-</instance>
-<instance part="C8" gate="G$1" x="132.08" y="-5.08" smashed="yes">
-<attribute name="NAME" x="133.604" y="-4.699" size="1.778" layer="95"/>
-<attribute name="VALUE" x="133.604" y="-9.779" size="1.778" layer="96"/>
 </instance>
 <instance part="P+4" gate="1" x="180.34" y="129.54" smashed="yes">
 <attribute name="VALUE" x="177.8" y="124.46" size="1.778" layer="96" rot="R90"/>
@@ -14060,9 +14055,6 @@ OMNIDIRECTIONAL</description>
 <wire x1="101.6" y1="-10.16" x2="101.6" y2="-12.7" width="0.1524" layer="91"/>
 <wire x1="101.6" y1="-12.7" x2="124.46" y2="-12.7" width="0.1524" layer="91"/>
 <junction x="124.46" y="-12.7"/>
-<pinref part="C8" gate="G$1" pin="2"/>
-<wire x1="132.08" y1="-10.16" x2="132.08" y2="-12.7" width="0.1524" layer="91"/>
-<wire x1="132.08" y1="-12.7" x2="124.46" y2="-12.7" width="0.1524" layer="91"/>
 <pinref part="R17" gate="G$1" pin="1"/>
 </segment>
 <segment>
@@ -14351,11 +14343,7 @@ OMNIDIRECTIONAL</description>
 <net name="N$22" class="0">
 <segment>
 <pinref part="OA1" gate="B" pin="+IN"/>
-<wire x1="119.38" y1="7.62" x2="132.08" y2="7.62" width="0.1524" layer="91"/>
-<pinref part="C8" gate="G$1" pin="1"/>
-<wire x1="132.08" y1="7.62" x2="134.62" y2="7.62" width="0.1524" layer="91"/>
-<wire x1="132.08" y1="-2.54" x2="132.08" y2="7.62" width="0.1524" layer="91"/>
-<junction x="132.08" y="7.62"/>
+<wire x1="119.38" y1="7.62" x2="134.62" y2="7.62" width="0.1524" layer="91"/>
 <pinref part="R16" gate="G$1" pin="1"/>
 </segment>
 </net>
