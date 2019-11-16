@@ -58,27 +58,15 @@ CFG_STATUS HW::init(void) {
 }
 
 extern "C" void setup(void) {
-	switch (core.init()) {
-		case	CFG_NO_TIP:
-			pMode	= &activate;							// No tip configured, run tip activation menu
-			break;
-		case	CFG_READ_ERROR:								// Failed to read EEPROM
-			core.dspl.errorMessage("EEPROM\nread\nerror");
-			pMode	= &fail;
-			break;
-		default:
-			break;
-	}
+	CFG_STATUS cfg_init = core.init();						// Initialize the hardware structure before start timers
 
 	HAL_ADCEx_Calibration_Start(&hadc1);					// Calibrate both ADCs
 	HAL_ADCEx_Calibration_Start(&hadc2);
-	HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);				// PWM signal of the IRON
-	HAL_TIM_OC_Start_IT(&htim2,  TIM_CHANNEL_3);			// Check the current through the IRON, also check ambient temperature
-	HAL_TIM_OC_Start_IT(&htim2,  TIM_CHANNEL_4);			// Calculate power of the IRON
+	HAL_TIM_PWM_Start(&htim2, 	TIM_CHANNEL_1);				// PWM signal of the IRON
+	HAL_TIM_OC_Start_IT(&htim2,	TIM_CHANNEL_3);				// Check the current through the IRON
+	HAL_TIM_OC_Start_IT(&htim2, TIM_CHANNEL_4);				// Calculate power of the IRON
 
-	/*
-	 * Setup main mode parameters: return mode, short press mode, long press mode
-	 */
+	// Setup mode parameters: return mode, short press mode, long press mode
 	standby_iron.setup(&select, &work_iron, &main_menu);
 	work_iron.setup(&standby_iron, &standby_iron, &boost);
 	boost.setup(&work_iron, &work_iron, &work_iron);
@@ -93,6 +81,19 @@ extern "C" void setup(void) {
 	pid_tune.setup(&standby_iron, &standby_iron, &standby_iron);
 	auto_pid_tune.setup(&standby_iron, &pid_tune, &standby_iron);
 	main_menu.setup(&standby_iron, &standby_iron, &standby_iron);
+
+	switch (cfg_init) {
+		case	CFG_NO_TIP:
+			pMode	= &activate;							// No tip configured, run tip activation menu
+			break;
+		case	CFG_READ_ERROR:								// Failed to read EEPROM
+			core.dspl.errorMessage("EEPROM\nread\nerror");
+			pMode	= &fail;
+			fail.setup(&fail, &fail, &fail);				// Stay in fail mode forever
+			break;
+		default:
+			break;
+	}
 
 	HAL_Delay(500);											// Wait till hardware status updated
 	pMode->init();

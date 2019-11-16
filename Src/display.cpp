@@ -164,8 +164,8 @@ void DSPL::init(const u8g2_cb_t *rotation) {
 	if (HAL_OK == HAL_I2C_IsDeviceReady(&hi2c1, OLED_I2C_ADDR<<1, 2, 2)) {
 		msg_cb = u8x8_byte_stm32_hw_i2c;
 	}
-//	u8g2_Setup_sh1106_128x64_noname_f(&u8g2, rotation, msg_cb, u8x8_gpio_and_delay_stm32);
-	u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, rotation, msg_cb, u8x8_gpio_and_delay_stm32);
+	u8g2_Setup_sh1106_128x64_noname_f(&u8g2, rotation, msg_cb, u8x8_gpio_and_delay_stm32);
+//	u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, rotation, msg_cb, u8x8_gpio_and_delay_stm32);
 //	u8g2_Setup_ssd1309_128x64_noname2_f(&u8g2, rotation, msg_cb, u8x8_gpio_and_delay_stm32);
 	begin();
 }
@@ -772,22 +772,27 @@ void DSPL::errorShow(void) {
 	} else {
 		U8G2::setFont(u8g_font_profont15r);
 		uint8_t len = strlen(err_msg);
-		uint8_t line = 0;
+		uint8_t line = 1;
 		for (uint8_t start = 0; start < len; ) {
 			uint8_t finish = start+1;
-			while (++finish < len && err_msg[finish] != '\n');
-			if (finish < len) {
-				err_msg[finish] = '\0';
-				uint8_t width = U8G2::getStrWidth(&err_msg[start]);
-				if (width < d_width) {
-					U8G2::drawStr((d_width-width)/2, line*13, &err_msg[start]);
-				} else {
-					U8G2::drawStr(0, line*13, &err_msg[start]);
-				}
-				++line;
-				err_msg[finish] = '\n';
-				start = finish + 1;
+			while (++finish < len) {
+				if (err_msg[finish] == '\n')
+					break;
 			}
+			bool not_end = (finish < len);
+			if (not_end)
+				err_msg[finish] = '\0';
+			uint8_t width = U8G2::getStrWidth(&err_msg[start]);
+			if (width < d_width) {
+				U8G2::drawStr((d_width-width)/2, line*13, &err_msg[start]);
+			} else {
+				U8G2::drawStr(0, line*13, &err_msg[start]);
+			}
+			if (++line > 4)												// Only 4 lines display cat fit
+				break;
+			if (not_end)
+				err_msg[finish] = '\n';
+			start = finish + 1;
 		}
 	}
 	U8G2::sendBuffer();

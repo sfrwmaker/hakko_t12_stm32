@@ -227,9 +227,11 @@ bool CFG::toggleTipActivation(uint8_t index) {
 			strncpy(tip.name, name, tip_name_sz);			// Initialize tip name
 			tip.mask = TIP_ACTIVE;
 			if (saveTipData(&tip, tip_chunk_index) == EPR_OK) {
-				tip_table[index].tip_chunk_index	= tip_chunk_index;
-				tip_table[index].tip_mask			= tip.mask;
-				return true;
+				if (isTipCorrect(tip_chunk_index, &tip)) {
+					tip_table[index].tip_chunk_index	= tip_chunk_index;
+					tip_table[index].tip_mask			= tip.mask;
+					return true;
+				}
 			}
 		}
 	} else {												// Tip configuration data exists in the EEPROM
@@ -242,6 +244,22 @@ bool CFG::toggleTipActivation(uint8_t index) {
 		}
 	}
 	return false;
+}
+
+// Check the TIP data was written correctly
+bool CFG::isTipCorrect(uint8_t tip_chunk_index, TIP *tip) {
+	bool same_name = true;
+	forceReloadChunk();							// Reread the chunk, disable EEPROM cache
+	TIP read_tip;
+	if (loadTipData(&read_tip, tip_chunk_index) == EPR_OK) {
+		for (uint8_t i = 0; i < tip_name_sz; ++i) {
+			if (read_tip.name[i] != tip->name[i]) {
+				same_name = false;
+				break;
+			}
+		}
+	}
+	return same_name;
 }
 
  // Build the tip list starting from the previous tip
@@ -364,6 +382,16 @@ uint8_t	CFG::freeTipChunkIndex(void) {
 		}
 		if (!chunk_allocated) {
 			return index;
+		}
+	}
+	// Try to found not active TIP
+	for (uint8_t i = 0; i < TIPS::loaded(); ++i) {
+		if (tip_table[i].tip_chunk_index != NO_TIP_CHUNK) {
+			if (!(tip_table[i].tip_mask & TIP_ACTIVE)) {	// The data is allocated for tip, but tip is not activated
+				tip_table[i].tip_chunk_index 	= NO_TIP_CHUNK;
+				tip_table[i].tip_mask			= 0;
+				return i;
+			}
 		}
 	}
 	return NO_TIP_CHUNK;
