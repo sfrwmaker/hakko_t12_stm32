@@ -104,6 +104,7 @@ class CFG : public EEPROM, public CFG_CORE, public TIP_CFG, public BUZZER {
 		uint8_t		buildTipTable(TIP_TABLE tt[]);
 		char* 		buildFullTipName(char tip_name[tip_name_sz], const uint8_t index);
 		uint8_t		freeTipChunkIndex(void);
+		bool		isTipCorrect(uint8_t tip_chunk_index, TIP *tip);
 		TIP_TABLE	*tip_table = 0;							// Tip table - chunk number of the tip or 0xFF if does not exist in the EEPROM
 };
 
