@@ -6,13 +6,11 @@ Project page: https://www.hackster.io/sfrwmaker/soldering-iron-controller-for-ha
 Revision history
 
 11/16/2019
-
-Fixed incorrenct message processing issue.
-  Now "EEPROM read error" message would be displayed in case if the controller cannot access EEPROM IC.
-Empty slot for TIP calibration data issue fixed.
-  The slot of non-active tip can be used for newly activated tip.
-When new tip activated, the controller checks data written to EEPROM.
-  If tip configuration data would not read correctly the "EEPROM write error" message wouls be displayed.
+  Fixed incorrect message processing issue.
+    Now "EEPROM read error" message would be displayed in case if the controller cannot access EEPROM IC.
+  Empty slot for TIP calibration data issue fixed. The slot of non-active tip can be used for newly activated tip.
+    When new tip activated, the controller checks data written to EEPROM.
+  If tip configuration data would not read correctly the "EEPROM write error" message would be displayed.
 
 11/09/2019
 
