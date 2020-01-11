@@ -6,8 +6,7 @@ Project page: https://www.hackster.io/sfrwmaker/soldering-iron-controller-for-ha
 Revision history
 
 01/11/2020
- - 100k pull-up resistor added
- - 100k guard resister added
+ - The schematics changed
  - Buzzer is always on issue fixed
  - Scrren saver feature implemented
  - New encoder button procedure increase the management stability
