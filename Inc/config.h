@@ -25,15 +25,16 @@ typedef enum cfg_status {CFG_OK = 0, CFG_NO_TIP, CFG_READ_ERROR} CFG_STATUS;
 class CFG_CORE: public TIPS {
 	public:
 		CFG_CORE(void)									{ }
-		bool		isCelsius(void) 					{ return a_cfg.celsius;					}
-		bool		isBuzzerEnabled(void)				{ return a_cfg.buzzer; 					}
+		bool		isCelsius(void) 					{ return a_cfg.bit_mask & CFG_CELSIUS;	}
+		bool		isBuzzerEnabled(void)				{ return a_cfg.bit_mask & CFG_BUZZER; 	}
 		uint16_t	tempPresetHuman(void) 				{ return a_cfg.temp;					}
 		uint8_t		getOffTimeout(void) 				{ return a_cfg.off_timeout; 			}
 		uint16_t	getLowTemp(void)					{ return a_cfg.low_temp; 				}
 		uint8_t		getLowTO(void)						{ return a_cfg.low_to; 					}
-		uint8_t		boostTemp(void)						{ return a_cfg.boost_temp; 				}
-		uint8_t		boostDuration(void)					{ return a_cfg.boost_duration; 			}
-		void		setup(uint8_t off_timeout, bool buzzer, bool celsius, uint16_t low_temp, uint8_t low_to);
+		uint8_t		getScrTo(void)						{ return a_cfg.scr_save_timeout;		}
+		uint8_t		boostTemp(void);
+		uint8_t		boostDuration(void);
+		void		setup(uint8_t off_timeout, bool buzzer, bool celsius, uint16_t low_temp, uint8_t low_to, uint8_t scr_saver);
 		uint8_t		currentTipIndex(void);
 		void 		savePresetTempHuman(uint16_t temp_set);
 		void		saveBoost(uint8_t temp, uint8_t duration);
@@ -88,8 +89,8 @@ class CFG : public EEPROM, public CFG_CORE, public TIP_CFG, public BUZZER {
 		CFG(I2C_HandleTypeDef* pHi2c): EEPROM(pHi2c) 	{ }
 		CFG_STATUS	init(void);
 		uint16_t 	tipChunksTotal(void);
-		uint16_t	tempHuman(uint16_t temp, int16_t ambient);
-		uint16_t	human2temp(uint16_t temp, int16_t ambient);
+		uint16_t	tempToHuman(uint16_t temp, int16_t ambient);
+		uint16_t	humanToTemp(uint16_t temp, int16_t ambient);
 		uint16_t	lowPowerTemp(uint16_t t, int16_t ambient);
 		const char* tipName(void);
 		void     	changeTip(uint8_t index);
@@ -99,6 +100,7 @@ class CFG : public EEPROM, public CFG_CORE, public TIP_CFG, public BUZZER {
 		void		saveConfig(void);
 		void		savePID(PIDparam &pp);
 		void 		initConfigArea(void);
+		void		clearAllTipsCalibration(void);
 	private:
 		bool 		selectTip(uint8_t index);
 		uint8_t		buildTipTable(TIP_TABLE tt[]);

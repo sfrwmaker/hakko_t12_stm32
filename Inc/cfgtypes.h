@@ -9,8 +9,25 @@
 #define CFGTYPES_H_
 #include "iron_tips.h"
 
+/*
+ * The configuration bit map:
+ * CFG_CELSIUS		- The temperature units: Celsius (1) or Fahrenheit (0)
+ * CFG_BUZZER		- Is the Buzzer Enabled (1)
+ * CFG_KEEP_IRON	- Is keep the iron working while in Hot Air Gun mode
+ */
+typedef enum { CFG_CELSIUS = 1, CFG_BUZZER = 2 } CFG_BIT_MASK;
+
 /* Configuration record in the EEPROM (after the tip table) has the following format:
  * Records are aligned by 2**n bytes (in this case, 32 bytes)
+ *
+ * Boost is a bit map. The upper 4 bits are boost increment temperature (n*5 Celsius), i.e.
+ * 0000 - disabled
+ * 0001 - +4  degrees
+ * 1111 - +75 degrees
+ * The lower 4 bits is the boost time ((n+1)* 5 seconds), i.e.
+ * 0000 -  5 seconds
+ * 0001 - 10 seconds
+ * 1111 - 80 seconds
  */
 typedef struct s_config RECORD;
 struct s_config {
@@ -22,10 +39,9 @@ struct s_config {
 	uint8_t		off_timeout;						// The Automatic switch-off timeout in minutes [0 - 30]
 	uint16_t	low_temp;							// The low power temperature (C/F) or 0 if the vibro sensor is disabled
 	uint8_t		low_to;								// The low power timeout (seconds)
-	bool		celsius;							// Temperature units: true - Celsius, false - Fahrenheit
-	bool		buzzer;								// Whether the buzzer is enabled
-	uint8_t		boost_temp;							// The boost increment temperature (Celsius). Zero if disabled
-	uint8_t		boost_duration;						// The boost duration (seconds)
+	uint8_t		bit_mask;							// See CFG_BIT_MASK enum
+	uint8_t		boost;								// Two 4-bits parameters: The boost increment temperature and boost time. See description above
+	uint8_t		scr_save_timeout;					// The screen saver timeout (in minutes) [0-60]. Zero if disabled
 };
 
 /* Configuration data of each initialized tip are saved in the upper area of the EEPROM.
@@ -41,7 +57,7 @@ struct s_tip {
 	uint16_t	t200, t260, t330, t400;				// The internal temperature in reference points
 	uint8_t		mask;								// The bit mask: TIP_ACTIVE + TIP_CALIBRATED
 	char		name[tip_name_sz];					// T12 tip name suffix, JL02 for T12-JL02
-	int8_t		ambient;							// The ambient temperature in Celsius when the tip being calibrated
+	int8_t		ambient;							// The ambient temperature when the tip being calibrated (Celsius)
 	uint8_t		crc;								// CRC checksum
 };
 

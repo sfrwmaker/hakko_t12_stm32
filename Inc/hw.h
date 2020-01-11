@@ -15,6 +15,7 @@
 #include "iron.h"
 #include "encoder.h"
 #include "display.h"
+#include "buzzer.h"
 #include "config.h"
 
 extern I2C_HandleTypeDef 	hi2c1;
@@ -28,6 +29,7 @@ class HW {
 		DSPL		dspl;
 		IRON		iron;
 		RENC		encoder;
+		BUZZER		buzz;
 };
 
 #endif

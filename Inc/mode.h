@@ -19,7 +19,7 @@
 #include "stat.h"
 #include "hw.h"
 
-class MODE : public BUZZER {
+class MODE  {
 	public:
 		MODE(HW *pCore)										{ this->pCore = pCore; }
 		void			setup(MODE* return_mode, MODE* short_mode, MODE* long_mode);
@@ -40,8 +40,20 @@ class MODE : public BUZZER {
 
 };
 
+class SCRSAVER {
+	public:
+		SCRSAVER(void)										{ }
+		void			init(uint8_t timeout)				{ to = timeout; reset(); }
+		void			reset(void);
+		bool 			scrSaver(void);
+	private:
+		uint32_t		scr_save_ms		= 0;				// Time in ms when to switch to Screen Saver mode (if > 0)
+		uint8_t			to				= 0;
+		bool			scr_saver		= false;			// Is the screen saver active
+};
+
 //---------------------- The iron standby mode -----------------------------------
-class MSTBY_IRON : public MODE {
+class MSTBY_IRON : public MODE, SCRSAVER {
 	public:
 		MSTBY_IRON(HW *pCore) : MODE(pCore)					{ }
 		virtual void	init(void);
@@ -54,7 +66,7 @@ class MSTBY_IRON : public MODE {
 };
 
 //-------------------- The iron main working mode, keep the temperature ----------
-class MWORK_IRON : public MODE {
+class MWORK_IRON : public MODE, SCRSAVER {
 	public:
 		MWORK_IRON(HW *pCore) : MODE(pCore), idle_pwr(ec)					{ }
 		virtual void	init(void);
@@ -124,18 +136,20 @@ class MMENU : public MODE {
 		uint8_t		off_timeout		= 0;					// Automatic switch off timeout (minutes or 0 to disable)
 		uint16_t	low_temp		= 0;					// The low power temperature (Celsius or Fahrenheit) 0 - disable tilt sensor
 		uint8_t		low_to			= 0;					// The low power timeout, seconds
+		uint8_t		scr_saver		= 0;					// Screen saver timeout in minutes or 0 to disable
 		bool		buzzer			= true;					// Whether the buzzer is enabled
 		bool		celsius			= true;					// Temperature units: C/F
 		uint8_t		set_param		= 0;					// The index of the modifying parameter
-		uint8_t		m_len			= 14;					// The menu length
+		uint8_t		m_len			= 15;					// The menu length
 		uint8_t		mode_menu_item 	= 1;					// Save active menu element index to return back later
-		const char* menu_name[14] = {
+		const char* menu_name[15] = {
 			"boost setup",
 			"units",
 			"buzzer",
 			"auto off",
 			"standby temp",
 			"standby time",
+			"screen saver",
 			"save",
 			"cancel",
 			"calibrate tip",
@@ -281,5 +295,15 @@ class MFAIL : public MODE {
 		virtual MODE*	loop(void);
 };
 
+//---------------------- The Debug mode: display internal parameters ------------
+class MDEBUG : public MODE {
+	public:
+		MDEBUG(HW *pCore) : MODE(pCore)						{ }
+		virtual void	init(void);
+		virtual MODE*	loop(void);
+	private:
+		uint16_t		old_power 		= 0;
+		const uint16_t	max_iron_power 	= 300;
+};
 
 #endif /* MODE_H_ */

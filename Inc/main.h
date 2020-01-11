@@ -73,7 +73,6 @@ void Error_Handler(void);
 #define ENCODER_L_EXTI_IRQn EXTI0_IRQn
 #define ENCODER_B_Pin GPIO_PIN_1
 #define ENCODER_B_GPIO_Port GPIOB
-#define ENCODER_B_EXTI_IRQn EXTI1_IRQn
 #define OLED_RESET_Pin GPIO_PIN_10
 #define OLED_RESET_GPIO_Port GPIOB
 #define OLED_DC_Pin GPIO_PIN_11
@@ -91,7 +90,7 @@ void Error_Handler(void);
 #define BUZZER_Pin GPIO_PIN_9
 #define BUZZER_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
-#define FW_VERSION	("2.02")
+#define FW_VERSION	("3.01")
 
 /* USER CODE END Private defines */
 

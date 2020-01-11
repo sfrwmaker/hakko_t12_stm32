@@ -16,7 +16,9 @@ class IRON_HW {
 		IRON_HW(void)										{ }
 		void		init(void);
 		bool 		isIronConnected(void) 					{ return c_iron.status();						}
+		uint16_t	ironCurrent(void)						{ return c_iron.read();							}	// Used in debug mode only
 		bool 		isIronTiltSwitch(void) 					{ return sw_iron.status();						}	// TRUE if switch is open
+		uint16_t	ironTilt(void)							{ return sw_iron.read();						}
 		void		updateAmbient(uint32_t value)			{ t_amb.update(value);							}
 		void		updateIronCurrent(uint16_t value)		{ c_iron.update(value);							}
 		int32_t		tempShortAverage(int32_t t)				{ return t_iron_short.average(t);				}
