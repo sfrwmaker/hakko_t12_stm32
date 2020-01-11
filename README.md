@@ -5,32 +5,37 @@ Project page: https://www.hackster.io/sfrwmaker/soldering-iron-controller-for-ha
 
 Revision history
 
-11/16/2019
+01/11/2020
+ - 100k pull-up resistor added
+ - 100k guard resister added
+ - Buzzer is always on issue fixed
+ - Scrren saver feature implemented
+ - New encoder button procedure increase the management stability
+ 
 
-Fixed incorrect message processing issue.
+11/16/2019
+- Fixed incorrect message processing issue.
     Now "EEPROM read error" message would be displayed in case if the controller cannot access EEPROM IC.
-Empty slot for TIP calibration data issue fixed. The slot of non-active tip can be used for newly activated tip.
+- Empty slot for TIP calibration data issue fixed. The slot of non-active tip can be used for newly activated tip.
     When new tip activated, the controller checks data written to EEPROM.
-If tip configuration data would not read correctly the "EEPROM write error" message would be displayed.
+- If tip configuration data would not read correctly the "EEPROM write error" message would be displayed.
 
 11/09/2019
-
-Tip connection issue has been fixed.
-Capacitor C8 has been removed from schematics.
+- Tip connection issue has been fixed.
+- Capacitor C8 has been removed from schematics.
 
 11/05/2019
-
-New Encoder algorithm implemented, just press and hold the encoder button for long press
-EEPROM scheking procedure implemented, two error messages added
-Several issues fixed including:
-  default tip calibration data issue
-  automatic adjustment of the tip temperature depending on the ambient temperature issue
+- New Encoder algorithm implemented, just press and hold the encoder button for long press
+- EEPROM scheking procedure implemented, two error messages added
+- Several issues fixed including:
+  - default tip calibration data issue
+  - automatic adjustment of the tip temperature depending on the ambient temperature issue
   
 10/21/2019
-Fixed i2c type display initialization
+- Fixed i2c type display initialization
 
 10/15/2019
-Fixed incorrenct ambient temperature readings when power is on
+- Fixed incorrenct ambient temperature readings when power is on
 
 10/10/2019
 New controller version released, v2.00.
