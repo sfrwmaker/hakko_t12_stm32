@@ -13621,6 +13621,9 @@ OMNIDIRECTIONAL</description>
 <part name="U$4" library="diy-modules" deviceset="DISPLAY-OLED-128X64-I2C" device="" value="OLED-128X64-I2C"/>
 <part name="+3V9" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="+3V3" device=""/>
 <part name="GND17" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="GND" device=""/>
+<part name="R18" library="rcl" library_urn="urn:adsk.eagle:library:334" deviceset="R-EU_" device="0204/5" package3d_urn="urn:adsk.eagle:package:23488/1" value="100k"/>
+<part name="+3V10" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="+3V3" device=""/>
+<part name="R19" library="rcl" library_urn="urn:adsk.eagle:library:334" deviceset="R-EU_" device="0204/5" package3d_urn="urn:adsk.eagle:package:23488/1" value="100k"/>
 </parts>
 <sheets>
 <sheet>
@@ -13807,16 +13810,16 @@ OMNIDIRECTIONAL</description>
 <attribute name="NAME" x="148.3614" y="67.31" size="1.778" layer="95" rot="R90"/>
 <attribute name="VALUE" x="153.162" y="67.31" size="1.778" layer="96" rot="R90"/>
 </instance>
-<instance part="R13" gate="G$1" x="68.58" y="17.78" smashed="yes" rot="R270">
-<attribute name="NAME" x="72.39" y="20.32" size="1.778" layer="95" rot="R270"/>
-<attribute name="VALUE" x="64.77" y="22.86" size="1.778" layer="96" rot="R270"/>
+<instance part="R13" gate="G$1" x="76.2" y="17.78" smashed="yes" rot="R270">
+<attribute name="NAME" x="80.01" y="20.32" size="1.778" layer="95" rot="R270"/>
+<attribute name="VALUE" x="72.39" y="22.86" size="1.778" layer="96" rot="R270"/>
 </instance>
 <instance part="R4" gate="G$1" x="76.2" y="60.96" smashed="yes" rot="R90">
 <attribute name="NAME" x="74.7014" y="57.15" size="1.778" layer="95" rot="R90"/>
 <attribute name="VALUE" x="79.502" y="57.15" size="1.778" layer="96" rot="R90"/>
 </instance>
-<instance part="GND13" gate="1" x="68.58" y="2.54" smashed="yes">
-<attribute name="VALUE" x="66.04" y="0" size="1.778" layer="96"/>
+<instance part="GND13" gate="1" x="76.2" y="2.54" smashed="yes">
+<attribute name="VALUE" x="73.66" y="0" size="1.778" layer="96"/>
 </instance>
 <instance part="+3V5" gate="G$1" x="76.2" y="73.66" smashed="yes">
 <attribute name="VALUE" x="73.66" y="68.58" size="1.778" layer="96" rot="R90"/>
@@ -13824,12 +13827,12 @@ OMNIDIRECTIONAL</description>
 <instance part="+3V6" gate="G$1" x="114.3" y="53.34" smashed="yes">
 <attribute name="VALUE" x="111.76" y="48.26" size="1.778" layer="96" rot="R90"/>
 </instance>
-<instance part="TILT" gate="G$1" x="-7.62" y="66.04" smashed="yes" rot="R90">
-<attribute name="NAME" x="-10.16" y="71.12" size="1.778" layer="95" rot="R180"/>
-<attribute name="VALUE" x="-2.54" y="71.12" size="1.778" layer="95" rot="R90"/>
+<instance part="TILT" gate="G$1" x="-15.24" y="63.5" smashed="yes" rot="R180">
+<attribute name="NAME" x="-20.32" y="55.88" size="1.778" layer="95"/>
+<attribute name="VALUE" x="-20.32" y="68.58" size="1.778" layer="95" rot="R180"/>
 </instance>
-<instance part="GND14" gate="1" x="-17.78" y="60.96" smashed="yes">
-<attribute name="VALUE" x="-20.32" y="58.42" size="1.778" layer="96"/>
+<instance part="GND14" gate="1" x="-15.24" y="50.8" smashed="yes">
+<attribute name="VALUE" x="-17.78" y="48.26" size="1.778" layer="96"/>
 </instance>
 <instance part="R2" gate="G$1" x="160.02" y="104.14" smashed="yes" rot="R90">
 <attribute name="NAME" x="158.5214" y="100.33" size="1.778" layer="95" rot="R90"/>
@@ -13879,6 +13882,17 @@ OMNIDIRECTIONAL</description>
 </instance>
 <instance part="GND17" gate="1" x="-35.56" y="50.8" smashed="yes">
 <attribute name="VALUE" x="-38.1" y="48.26" size="1.778" layer="96"/>
+</instance>
+<instance part="R18" gate="G$1" x="-15.24" y="76.2" smashed="yes" rot="R90">
+<attribute name="NAME" x="-16.7386" y="72.39" size="1.778" layer="95" rot="R90"/>
+<attribute name="VALUE" x="-11.938" y="72.39" size="1.778" layer="96" rot="R90"/>
+</instance>
+<instance part="+3V10" gate="G$1" x="-15.24" y="86.36" smashed="yes">
+<attribute name="VALUE" x="-17.78" y="81.28" size="1.778" layer="96" rot="R90"/>
+</instance>
+<instance part="R19" gate="G$1" x="-5.08" y="71.12" smashed="yes" rot="R180">
+<attribute name="NAME" x="-1.27" y="69.6214" size="1.778" layer="95" rot="R180"/>
+<attribute name="VALUE" x="-1.27" y="74.422" size="1.778" layer="96" rot="R180"/>
 </instance>
 </instances>
 <busses>
@@ -13983,6 +13997,11 @@ OMNIDIRECTIONAL</description>
 <wire x1="-53.34" y1="53.34" x2="-38.1" y2="53.34" width="0.1524" layer="91"/>
 <wire x1="-38.1" y1="53.34" x2="-38.1" y2="55.88" width="0.1524" layer="91"/>
 </segment>
+<segment>
+<pinref part="R18" gate="G$1" pin="2"/>
+<pinref part="+3V10" gate="G$1" pin="+3V3"/>
+<wire x1="-15.24" y1="81.28" x2="-15.24" y2="83.82" width="0.1524" layer="91"/>
+</segment>
 </net>
 <net name="GND" class="0">
 <segment>
@@ -14075,13 +14094,12 @@ OMNIDIRECTIONAL</description>
 <segment>
 <pinref part="GND13" gate="1" pin="GND"/>
 <pinref part="R13" gate="G$1" pin="1"/>
-<wire x1="68.58" y1="5.08" x2="68.58" y2="12.7" width="0.1524" layer="91"/>
+<wire x1="76.2" y1="5.08" x2="76.2" y2="12.7" width="0.1524" layer="91"/>
 </segment>
 <segment>
 <pinref part="TILT" gate="G$1" pin="1"/>
 <pinref part="GND14" gate="1" pin="GND"/>
-<wire x1="-15.24" y1="66.04" x2="-17.78" y2="66.04" width="0.1524" layer="91"/>
-<wire x1="-17.78" y1="66.04" x2="-17.78" y2="63.5" width="0.1524" layer="91"/>
+<wire x1="-15.24" y1="55.88" x2="-15.24" y2="53.34" width="0.1524" layer="91"/>
 </segment>
 <segment>
 <pinref part="GND7" gate="1" pin="GND"/>
@@ -14419,12 +14437,11 @@ OMNIDIRECTIONAL</description>
 <segment>
 <pinref part="U$1" gate="G$1" pin="PA6"/>
 <pinref part="R4" gate="G$1" pin="1"/>
-<wire x1="58.42" y1="53.34" x2="68.58" y2="53.34" width="0.1524" layer="91"/>
-<wire x1="68.58" y1="53.34" x2="76.2" y2="53.34" width="0.1524" layer="91"/>
+<wire x1="58.42" y1="53.34" x2="76.2" y2="53.34" width="0.1524" layer="91"/>
 <wire x1="76.2" y1="53.34" x2="76.2" y2="55.88" width="0.1524" layer="91"/>
 <pinref part="R13" gate="G$1" pin="2"/>
-<wire x1="68.58" y1="22.86" x2="68.58" y2="53.34" width="0.1524" layer="91"/>
-<junction x="68.58" y="53.34"/>
+<wire x1="76.2" y1="22.86" x2="76.2" y2="53.34" width="0.1524" layer="91"/>
+<junction x="76.2" y="53.34"/>
 </segment>
 </net>
 <net name="N$3" class="0">
@@ -14445,9 +14462,20 @@ OMNIDIRECTIONAL</description>
 </net>
 <net name="N$17" class="0">
 <segment>
-<pinref part="TILT" gate="G$1" pin="2"/>
 <pinref part="U$1" gate="G$1" pin="PA8"/>
-<wire x1="0" y1="66.04" x2="17.78" y2="66.04" width="0.1524" layer="91"/>
+<wire x1="17.78" y1="66.04" x2="7.62" y2="66.04" width="0.1524" layer="91"/>
+<wire x1="7.62" y1="66.04" x2="7.62" y2="71.12" width="0.1524" layer="91"/>
+<pinref part="R19" gate="G$1" pin="1"/>
+<wire x1="0" y1="71.12" x2="7.62" y2="71.12" width="0.1524" layer="91"/>
+</segment>
+</net>
+<net name="N$24" class="0">
+<segment>
+<pinref part="TILT" gate="G$1" pin="2"/>
+<pinref part="R18" gate="G$1" pin="1"/>
+<pinref part="R19" gate="G$1" pin="2"/>
+<wire x1="-15.24" y1="71.12" x2="-10.16" y2="71.12" width="0.1524" layer="91"/>
+<junction x="-15.24" y="71.12"/>
 </segment>
 </net>
 </nets>
