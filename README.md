@@ -8,7 +8,7 @@ Revision history
 01/11/2020
  - The schematics changed
  - Buzzer is always on issue fixed
- - Scrren saver feature implemented
+ - Screen saver feature implemented
  - New encoder button procedure increase the management stability
  
 
