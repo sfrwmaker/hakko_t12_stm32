@@ -10,9 +10,6 @@
 #include <string.h>
 #include <stdio.h>
 
-const uint16_t	d_width		= 128;        					// display width
-const uint16_t  d_height	= 64;        					// display height
-
 /*
  * Bitmaps
  */
@@ -301,6 +298,45 @@ void DSPL::mainShow(uint16_t t_set, uint16_t t_cur, int16_t  t_amb, uint8_t p_ap
 	U8G2::sendBuffer();
 }
 
+void DSPL::scrSave(SCR_MODE mode, uint16_t t_cur) {
+	static const char *modes[3] = {	"ON", "OFF", "STBY" };
+	U8G2::clearBuffer();
+	char buff[6];
+	uint8_t height = 46;
+	U8G2::setFont(u8g_font_profont15r);
+	uint8_t width = U8G2::getStrWidth(modes[(uint8_t)mode]);
+	U8G2::drawStr(saver_center[0]-width/2, saver_center[1]-height/2+16, modes[(uint8_t)mode]);
+
+	U8G2::setFont(u8g2_font_kam28n);
+	sprintf(buff, "%3d", t_cur);
+	width   = U8G2::getStrWidth(buff);
+	U8G2::drawStr(saver_center[0]-width/2, saver_center[1]+height/2, buff);
+	U8G2::sendBuffer();
+
+	// calculate new message position
+	if (saver_speed[0] > 0) {
+		if (saver_center[0]+width/2 >= d_width) {				// Right border of the screen
+			saver_speed[0] = -1;
+		}
+	} else {
+		if ((int)saver_center[0]-width/2 <= 0) {				// Left border of the screen
+			saver_speed[0] = 1;
+		}
+	}
+	if (saver_speed[1] > 0) {
+		if (saver_center[1]+height/2 >= d_height) {				// Bottom border of the screen
+			saver_speed[1] = -1;
+		}
+	} else {
+		if ((int)saver_center[1]-height/2 <= 0) {				// Top border of the screen
+			saver_speed[1] = 1;
+		}
+	}
+	saver_center[0] += saver_speed[0];
+	saver_center[1] += saver_speed[1];
+}
+
+
 void  DSPL::tuneShow(uint16_t tune_temp, uint16_t temp, uint8_t pwr_pcnt) {
 	if (temp > 4095) temp = 4095;
 	char p_buff[5];
@@ -544,8 +580,9 @@ void DSPL::pidShowMenu(uint16_t pid_k[3], uint8_t index) {
 	U8G2::sendBuffer();
 }
 
-void DSPL::calibShow(const char* tip_name, uint16_t ref_temp, uint16_t current_temp, uint16_t real_temp,
-		bool celsius, uint8_t power, bool on, bool ready, uint8_t int_temp_pcnt) {
+//---------------------- The Automatic Calibration display function --------------
+void DSPL::calibShow(const char* tip_name, uint8_t ref_point, uint16_t current_temp, uint16_t real_temp, bool celsius,
+		uint8_t power, bool on, bool ready, uint8_t int_temp_pcnt) {
 	static const char* title 	= "Tip:";
 	static const char* OFF		= "OFF";
 	static const char* ON  		= "ON";
@@ -556,13 +593,9 @@ void DSPL::calibShow(const char* tip_name, uint16_t ref_temp, uint16_t current_t
 	else
 		sym[0] = 'F';
 	char ref_buff[16];
-	sprintf(ref_buff, "Set: %3d", ref_temp);
+	sprintf(ref_buff, "Ref# %d", ref_point);
 
-	uint8_t p_height = 0;										  		// Applied power triangle height
-	if (power <= 10)
-		p_height = power;
-	else
-		p_height = map(power-10, 0, 90, 10, 45);
+	uint8_t p_height = gauge(power, 10, 45);						// Applied power triangle height
 
 	U8G2::setFont(u8g_font_profont15r);
 	U8G2::clearBuffer();
@@ -575,28 +608,28 @@ void DSPL::calibShow(const char* tip_name, uint16_t ref_temp, uint16_t current_t
 	U8G2::drawStr(start, 13, title);
 	U8G2::drawStr(start+width+5, 13, tip_name);
 	U8G2::drawHLine(5, 15, d_width-10);
-	// Show reference temperature
+	// Show reference point number
 	width = U8G2::getStrWidth(ref_buff);
 	U8G2::drawStr(5, 33, ref_buff);
-	U8G2::drawBitmap(5+width, 33-12, 1, 5, bmDegree);
-	U8G2::drawStr(5+8+width, 33, sym);
 	// Show current temperature
 	char temp_buff[10];
 	sprintf(temp_buff, "%3d", current_temp);
 	U8G2::drawBitmap(5, 57-15, 1, 15, bmTemperature);
+	width = U8G2::getStrWidth(temp_buff);
 	U8G2::drawStr(16, 57, temp_buff);
+	U8G2::drawBitmap(16+1+width, 57-12, 1, 5, bmDegree);
+	U8G2::drawStr(16+1+8+width, 57, sym);
 	if (ready) {
 		// Show real temperature
-		U8G2::drawBitmap(60, 57-7, 1, 7, bmLeftMark);
+		U8G2::drawBitmap(70, 57-7, 1, 7, bmLeftMark);
 		sprintf(temp_buff, "%3d", real_temp);
-		U8G2::drawStr(70, 57, temp_buff);
+		U8G2::drawStr(80, 57, temp_buff);
 	}
 	// Show the power applied
 	if (p_height > 0) {
 		U8G2::drawTriangle(d_width-5, 63, d_width-5, 63-p_height, d_width-6-p_height/4, 63-p_height);
 	}
-	// Show 'ON' or 'OFF' messages
-	if ((p_height < 30) && on) {
+	if ((p_height < 28) && on) {
 		width = U8G2::getStrWidth(ON);
 		U8G2::drawStr(d_width-width-5, 33, ON);
 	}
@@ -612,7 +645,7 @@ void DSPL::calibShow(const char* tip_name, uint16_t ref_temp, uint16_t current_t
 	U8G2::sendBuffer();
 }
 
-//---------------------- The Calibration display function ------------------------
+//---------------------- The Manual Calibration display function -----------------
 void DSPL::calibManualShow(const char* tip_name, uint16_t ref_temp, uint16_t current_temp,
 								uint16_t setup_temp, bool celsius, uint8_t power, bool on, bool ready) {
 	static const char* title 	= "Tip:";
@@ -806,17 +839,19 @@ void DSPL::errorMessage(const char *msg) {
 	}
 }
 
-void DSPL::debugShow(uint16_t current, uint16_t temp, uint16_t ambient) {
-	char buff[10];
+void DSPL::debugShow(uint16_t power, uint16_t data[5]) {
+	char buff[14];
 
 	U8G2::setFont(u8g_font_profont15r);
 	U8G2::clearBuffer();
-	sprintf(buff, "%5d", current);
-	U8G2::drawStr(0,  15, buff);
-	sprintf(buff, "%5d", temp);
+	sprintf(buff, "%5d", power);
 	U8G2::drawStr(0,  30, buff);
-	sprintf(buff, "%5d", ambient);
-	U8G2::drawStr(0,  45, buff);
+	for (uint8_t i = 0; i < 3; ++i) {
+		sprintf(buff, "%5d", data[i]);
+		U8G2::drawStr(60,  15*(i+1), buff);
+	}
+	sprintf(buff, "(%c-%c)", data[3]>0?'i':' ', data[4]>0?'t':' ');
+	U8G2::drawStr(5,  60, buff);
 	U8G2::sendBuffer();
 }
 

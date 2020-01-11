@@ -58,7 +58,7 @@ void IRON_HW::checkSWStatus(void) {
 	if (HAL_GetTick() > check_sw) {
 		check_sw = HAL_GetTick() + check_sw_period;
 		if (c_iron.status()) {								// Current through the IRON is registered
-			uint16_t on = 0;
+			volatile uint16_t on = 0;
 			if (GPIO_PIN_SET == HAL_GPIO_ReadPin(TILT_SW_GPIO_Port, TILT_SW_Pin))	on = 100;
 			sw_iron.update(on);								// 0 - short, 100 - open
 		}

@@ -89,14 +89,14 @@ void CFG::changeTip(uint8_t index) {
 }
 
 // Translate the internal temperature of the IRON to the human readable units (Celsius or Fahrenheit)
-uint16_t CFG::tempHuman(uint16_t temp, int16_t ambient) {
+uint16_t CFG::tempToHuman(uint16_t temp, int16_t ambient) {
 	uint16_t tempH = TIP_CFG::tempCelsius(temp, ambient);
 	if (!CFG_CORE::isCelsius())
 		tempH = celsiusToFahrenheit(tempH);
 	return tempH;
 }
 // Translate the temperature from human readable units (Celsius or Fahrenheit) to the internal units
-uint16_t CFG::human2temp(uint16_t t, int16_t ambient) {
+uint16_t CFG::humanToTemp(uint16_t t, int16_t ambient) {
 	int d = ambient - TIP_CFG::ambientTemp();
 	uint16_t t200	= referenceTemp(0) + d;
 	uint16_t t400	= referenceTemp(3) + d;
@@ -121,7 +121,7 @@ uint16_t CFG::human2temp(uint16_t t, int16_t ambient) {
 	}
 
 	for (uint8_t i = 0; i < 20; ++i) {
-		uint16_t tempH = tempHuman(temp, ambient);
+		uint16_t tempH = tempToHuman(temp, ambient);
 		if (tempH == t) {
 			return temp;
 		}
@@ -149,7 +149,7 @@ uint16_t CFG::lowPowerTemp(uint16_t t, int16_t ambient) {
 		tC = fahrenheitToCelsius(t);
 	}
 	if (tC > referenceTemp(0))
-		return human2temp(t, ambient);
+		return humanToTemp(t, ambient);
 
 	int d = ambient - TIP_CFG::ambientTemp();
 	uint16_t t0 	= ambient;
@@ -303,6 +303,27 @@ void CFG::initConfigArea(void) {
 	clearConfigArea();
 	setDefaults();
 	saveRecord(&a_cfg);
+	clearAllTipsCalibration();
+}
+
+void CFG::clearAllTipsCalibration(void) {
+	TIP tmp_tip;
+
+	for (uint8_t i = 0; i < TIPS::loaded(); ++i) {
+		if (tip_table[i].tip_chunk_index != NO_TIP_CHUNK) {
+			uint8_t m = tip_table[i].tip_mask;
+			// Check The tip is calibrated
+			if ((m & TIP_ACTIVE) && (m & TIP_CALIBRATED)) {
+				if (loadTipData(&tmp_tip, i) == EPR_OK) {
+					tmp_tip.mask 			= TIP_ACTIVE;	// Clear calibrated flag
+					tip_table[i].tip_mask	= TIP_ACTIVE;
+					if (saveTipData(&tmp_tip, i) != EPR_OK) {
+						break;								// Stop writing to EEPROM on the first IO error
+					}
+				}
+			}
+		}
+	}
 }
 
 /*
@@ -363,10 +384,9 @@ bool CFG_CORE::areConfigsIdentical(void) {
 	if (a_cfg.off_timeout 		!= s_cfg.off_timeout)		return false;
 	if (a_cfg.low_temp			!= s_cfg.low_temp)			return false;
 	if (a_cfg.low_to			!= s_cfg.low_to)			return false;
-	if (a_cfg.celsius			!= s_cfg.celsius)			return false;
-	if (a_cfg.buzzer			!= s_cfg.buzzer)			return false;
-	if (a_cfg.boost_temp		!= s_cfg.boost_temp)		return false;
-	if (a_cfg.boost_duration	!= s_cfg.boost_duration)	return false;
+	if (a_cfg.bit_mask			!= s_cfg.bit_mask)			return false;
+	if (a_cfg.boost				!= s_cfg.boost)				return false;
+	if (a_cfg.scr_save_timeout	!= s_cfg.scr_save_timeout)	return false;
 	return true;
 };
 
@@ -384,7 +404,7 @@ uint8_t	CFG::freeTipChunkIndex(void) {
 			return index;
 		}
 	}
-	// Try to found not active TIP
+	// Try to find not active TIP
 	for (uint8_t i = 0; i < TIPS::loaded(); ++i) {
 		if (tip_table[i].tip_chunk_index != NO_TIP_CHUNK) {
 			if (!(tip_table[i].tip_mask & TIP_ACTIVE)) {	// The data is allocated for tip, but tip is not activated
@@ -399,51 +419,52 @@ uint8_t	CFG::freeTipChunkIndex(void) {
 
 //---------------------- CORE_CFG class functions --------------------------------
 void CFG_CORE::setDefaults(void) {
-	a_cfg.temp			= 235;
-	a_cfg.tip			= 0;
-	a_cfg.off_timeout	= 0;
-	a_cfg.low_temp		= 0;
-	a_cfg.low_to		= 5;
-	a_cfg.celsius		= true;
-	a_cfg.buzzer		= true;
-	a_cfg.boost_temp	= 0;
-	a_cfg.boost_duration= 0;
-	a_cfg.pid_Kp		= 2300;
-	a_cfg.pid_Ki		= 48;
-	a_cfg.pid_Kd		= 1700;
+	a_cfg.temp				= 235;
+	a_cfg.tip				= 0;
+	a_cfg.off_timeout		= 0;
+	a_cfg.low_temp			= 0;
+	a_cfg.low_to			= 5;
+	a_cfg.bit_mask			= CFG_CELSIUS | CFG_BUZZER;
+	a_cfg.boost				= 0;
+	a_cfg.scr_save_timeout	= 0;
+	a_cfg.pid_Kp			= 2300;
+	a_cfg.pid_Ki			= 48;
+	a_cfg.pid_Kd			= 1700;
 }
 
 void CFG_CORE::correctConfig(RECORD *cfg) {
 	uint16_t iron_tempC = cfg->temp;
-	if (!(cfg->celsius)) {
+	if (!(cfg->bit_mask & CFG_CELSIUS)) {
 		iron_tempC	= fahrenheitToCelsius(iron_tempC);
 	}
 	iron_tempC	= constrain(iron_tempC, iron_temp_minC, iron_temp_maxC);
-	if (!(cfg->celsius)) {
+	if (!(cfg->bit_mask & CFG_CELSIUS)) {
 		iron_tempC	= celsiusToFahrenheit(iron_tempC);
 	}
 	cfg->temp	= iron_tempC;
-	if (cfg->off_timeout > 30)		cfg->off_timeout 	= 30;
-	if (cfg->tip > TIPS::loaded())	cfg->tip 			= 1;
-	if (cfg->boost_temp > 80)		cfg->boost_temp 	= 80;
-	if (cfg->boost_duration > 180)	cfg->boost_duration	= 180;
+	if (cfg->off_timeout > 30)		cfg->off_timeout 		= 30;
+	if (cfg->tip > TIPS::loaded())	cfg->tip 				= 1;
+	if (cfg->scr_save_timeout > 60) cfg->scr_save_timeout 	= 60;
 }
 
 // Apply main configuration parameters: automatic off timeout, buzzer and temperature units
-void CFG_CORE::setup(uint8_t off_timeout, bool buzzer, bool celsius, uint16_t low_temp, uint8_t low_to) {
-	a_cfg.off_timeout	= off_timeout;
-	a_cfg.low_temp		= low_temp;
+void CFG_CORE::setup(uint8_t off_timeout, bool buzzer, bool celsius, uint16_t low_temp, uint8_t low_to, uint8_t scr_saver) {
+	bool cfg_celsius		= a_cfg.bit_mask & CFG_CELSIUS;
+	a_cfg.off_timeout		= off_timeout;
+	a_cfg.scr_save_timeout	= scr_saver;
+	a_cfg.low_temp			= low_temp;
 	if (low_to < 5) low_to = 5;
-	a_cfg.low_to		= low_to;
-	if (a_cfg.celsius	!= celsius) {							// When we change units, the temperature should be converted
+	a_cfg.low_to			= low_to;
+	if (cfg_celsius	!= celsius) {							// When we change units, the temperature should be converted
 		if (celsius) {										// Translate preset temp. from Fahrenheit to Celsius
 			a_cfg.temp	= fahrenheitToCelsius(a_cfg.temp);
 		} else {											// Translate preset temp. from Celsius to Fahrenheit
 			a_cfg.temp	= celsiusToFahrenheit(a_cfg.temp);
 		}
 	}
-	a_cfg.celsius	= celsius;
-	a_cfg.buzzer	= buzzer;
+	a_cfg.bit_mask	= 0;
+	if (celsius)	a_cfg.bit_mask |= CFG_CELSIUS;
+	if (buzzer)		a_cfg.bit_mask |= CFG_BUZZER;
 }
 
 uint8_t CFG_CORE::currentTipIndex(void) {
@@ -466,12 +487,37 @@ void CFG_CORE::restoreConfig(void) {
 	memcpy(&a_cfg, &s_cfg, sizeof(RECORD));					// restore configuration from spare copy
 }
 
+/*
+ * Boost is a bit map. The upper 4 bits are boost increment temperature (n*5 Celsius), i.e.
+ * 0000 - disabled
+ * 0001 - +5  degrees
+ * 1111 - +75 degrees
+ * The lower 4 bits is the boost time ((n+1)* 5 seconds), i.e.
+ * 0000 -  5 seconds
+ * 0001 - 10 seconds
+ * 1111 - 80 seconds
+ */
+
+uint8_t	CFG_CORE::boostTemp(void){
+	uint8_t t = a_cfg.boost >> 4;
+	return t * 5;
+}
+
+uint8_t	CFG_CORE::boostDuration(void) {
+	uint8_t d = a_cfg.boost & 0xF;
+	return (d+1)*5;
+}
+
 // Save boost parameters to the current configuration
 void CFG_CORE::saveBoost(uint8_t temp, uint8_t duration) {
-	if (temp > 0 && duration == 0)
-		duration = 10;
-	a_cfg.boost_temp 		= temp;
-	a_cfg.boost_duration	= duration;
+	if (temp > 75)		temp = 75;
+	if (duration > 80)	duration = 80;
+	if (duration < 5)   duration = 5;
+	temp += 4;
+	temp /= 5;
+	a_cfg.boost = temp << 4;
+	a_cfg.boost &= 0xF0;
+	a_cfg.boost |= ((duration-1)/5) & 0xF;
 }
 
 // PID parameters: Kp, Ki, Kd
@@ -481,7 +527,7 @@ PIDparam CFG_CORE::pidParams(void) {
 
 // PID parameters: Kp, Ki, Kd for smooth work, i.e. tip calibration
 PIDparam CFG_CORE::pidParamsSmooth(void) {
-	return PIDparam(1180, 3, 300);
+	return PIDparam(575, 10, 200);
 }
 
 //---------------------- CORE_CFG class functions --------------------------------
@@ -529,7 +575,7 @@ uint16_t TIP_CFG::tempCelsius(uint16_t temp, int16_t ambient) {
 	    tempH = map(temp, 0, tip.calibration[0], ambient, referenceTemp(0)+d);
 	} else {
 		if (temp <= tip.calibration[3]) {					// Inside calibration interval
-			for (uint8_t j = 0; j < 4; ++j) {
+			for (uint8_t j = 1; j < 4; ++j) {
 				if (temp < tip.calibration[j]) {
 					tempH = map(temp, tip.calibration[j-1], tip.calibration[j], referenceTemp(j-1)+d, referenceTemp(j)+d);
 					break;

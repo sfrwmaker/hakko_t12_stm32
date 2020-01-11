@@ -25,6 +25,18 @@ int32_t constrain(int32_t value, int32_t min, int32_t max) {
 	return value;
 }
 
+// Calculate non-linear power gauge. Translate p_middle percentage to gauge middle interval
+uint8_t gauge(uint8_t percent, uint8_t p_middle, uint8_t g_max) {
+	if (percent > 100)	percent = 100;
+	if (p_middle > 70)	p_middle = 70;
+	if (g_max < 10)		g_max = 10;
+	if (percent <= p_middle) {
+		return map(percent, 0, p_middle, 0, g_max >> 1);
+	} else {
+		return map(percent, p_middle+1, 100, (g_max >> 1)+1, g_max);
+	}
+}
+
 /*
  * Convert integer Celsius temperature to the Fahrenheit
  */

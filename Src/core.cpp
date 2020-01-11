@@ -13,8 +13,9 @@
 #include "tools.h"
 #include "buzzer.h"
 
-#define ADC_CONV (4)										// Maximum numbers of ADC conversions
-#define ADC_BUFF_SZ	(2*ADC_CONV)
+#define ADC_CONV 	(2)										// Activated ADC Ranks Number (hadc2.Init.NbrOfConversion)
+#define ADC_LOOPS	(2)										// Number of ADC conversion loops. Should be even
+#define ADC_BUFF_SZ	(2*ADC_CONV*ADC_LOOPS)
 
 extern ADC_HandleTypeDef	hadc1;
 extern ADC_HandleTypeDef	hadc2;
@@ -23,9 +24,11 @@ extern TIM_HandleTypeDef	htim2;
 typedef enum { ADC_IDLE, ADC_CURRENT, ADC_TEMP } t_ADC_mode;
 volatile static t_ADC_mode	adc_mode = ADC_IDLE;
 volatile static uint16_t	buff[ADC_BUFF_SZ];
+volatile static uint8_t		check_count	= 1;				// Decrement from check_period to zero by TIM2. When become zero, force to check the IRON connectivity
 
-const static uint16_t		min_iron_pwm	= 3;			// This power should be applied to check the current through the IRON
-const static uint16_t  		max_iron_pwm	= 1980;			// Max value should be less than TIM2.CHANNEL3 value by 10
+const static uint16_t  		max_iron_pwm	= 1960;			// Max value should be less than TIM2.CHANNEL3 value by 20
+const static uint16_t		check_iron_pwm	= 5;			// This power should be applied to check the current through the IRON
+const static uint8_t		check_period	= 6;			// TIM2 loops between check current through the iron
 
 static HW		core;										// Hardware core (including all device instances)
 
@@ -44,6 +47,7 @@ static	MMBST			boost_setup(&core);
 static	MTPID			pid_tune(&core);
 static	MAUTOPID		auto_pid_tune(&core);
 static	MMENU			main_menu(&core, &boost_setup, &calib_menu, &activate, &tune, &pid_tune);
+static	MDEBUG			debug(&core);
 static	MODE*           pMode = &standby_iron;
 
 
@@ -54,6 +58,7 @@ CFG_STATUS HW::init(void) {
 	CFG_STATUS cfg_init = 	cfg.init();
 	PIDparam pp   		= 	cfg.pidParams();				// load IRON PID parameters
 	iron.load(pp);
+	buzz.activate(cfg.isBuzzerEnabled());
 	return cfg_init;
 }
 
@@ -101,7 +106,9 @@ extern "C" void setup(void) {
 
 
 extern "C" void loop(void) {
-	core.iron.checkSWStatus();								// Check status of IRON tilt switches
+	if (core.cfg.getLowTemp() > 0) {						// If low power temperature defined
+		core.iron.checkSWStatus();							// Check status of IRON tilt switches
+	}
 	MODE* new_mode = pMode->returnToMain();
 	if (new_mode && new_mode != pMode) {
 		core.iron.switchPower(false);
@@ -118,38 +125,15 @@ extern "C" void loop(void) {
 		pMode = new_mode;
 		pMode->init();
 	}
-
 }
 
 static bool adcStart(t_ADC_mode mode) {
     if (adc_mode != ADC_IDLE) {								// Not ready to check analog data; Something is wrong!!!
     	TIM2->CCR1 = 0;										// Switch off the IRON
-    	TIM1->CCR4 = 0;										// Switch off the Hot Air Gun
 		return false;
     }
-	ADC_ChannelConfTypeDef sConfig = {0};
-    if (mode == ADC_TEMP) {
-        sConfig.Channel			= ADC_CHANNEL_4;			// IRON_TEMP
-		sConfig.Rank			= ADC_REGULAR_RANK_1;
-		sConfig.SamplingTime 	= ADC_SAMPLETIME_71CYCLES_5;
-		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc1, &sConfig))	return false;
-		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc2, &sConfig))	return false;
-		sConfig.Channel 		= ADC_CHANNEL_6;			// AMBIENT_TEMP
-		sConfig.Rank 			= ADC_REGULAR_RANK_2;
-		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc1, &sConfig))	return false;
-		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc2, &sConfig))	return false;
-    } else if (mode == ADC_CURRENT) {
-		sConfig.Channel			= ADC_CHANNEL_2;			// IRON_CURRENT
-		sConfig.Rank			= ADC_REGULAR_RANK_1;
-		sConfig.SamplingTime 	= ADC_SAMPLETIME_71CYCLES_5;
-		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc1, &sConfig))	return false;
-		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc2, &sConfig))  return false;
-		sConfig.Rank 			= ADC_REGULAR_RANK_2;
-		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc1, &sConfig))	return false;
-		if (HAL_OK != HAL_ADC_ConfigChannel(&hadc2, &sConfig))	return false;
-    }
 	HAL_ADC_Start(&hadc2);
-    HAL_ADCEx_MultiModeStart_DMA(&hadc1, (uint32_t*)buff, ADC_CONV);
+    HAL_ADCEx_MultiModeStart_DMA(&hadc1, (uint32_t*)buff, ADC_CONV*ADC_LOOPS);
 	adc_mode = mode;
 	return true;
 }
@@ -173,6 +157,11 @@ extern "C" void HAL_TIM_OC_DelayElapsedCallback(TIM_HandleTypeDef *htim) {
 
 /*
  * IRQ handler of ADC complete request. The data is in the ADC buffer (buff)
+ * Data read by 4 slots interleaved: adc1-rank1, adc2-rank1, adc1-rank2, adc2-rank2
+ * The ADC buffer would have the following fields (see MX_ADC1_Init() MX_ADC2_Init() in main.c)
+ * ADC1:			ADC2:
+ * iron_current		iron_temp
+ * ambient			iron_temp
  */
 extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 	HAL_ADCEx_MultiModeStop_DMA(&hadc1);
@@ -180,27 +169,35 @@ extern "C" void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc) {
 	if (adc_mode == ADC_TEMP) {
 		uint32_t iron_temp	= 0;
 		uint32_t ambient	= 0;
-		for (uint8_t i = 0; i < 2*ADC_CONV; i += 4) {
-			iron_temp	+= buff[i] 		+ buff[i+1];
-			ambient		+= buff[i+2]	+ buff[i+3];
+		for (uint8_t i = 0; i < ADC_BUFF_SZ; i += 2*ADC_CONV) {
+			iron_temp	+= buff[i+1] 	+ buff[i+3];
+			ambient		+= buff[i+2];
 		}
-		iron_temp 	+= ADC_CONV/2;							// Round the result
-		iron_temp 	/= ADC_CONV;
-		ambient		+= ADC_CONV/2;
-		ambient		/= ADC_CONV;
+		iron_temp 	+= ADC_LOOPS;							// Round the result
+		iron_temp 	/= ADC_LOOPS*2;
+		ambient		+= ADC_LOOPS/2;
+		ambient		/= ADC_LOOPS;
 		core.iron.updateAmbient(ambient);
 
+		uint8_t min_iron_pwm = 0;							// By default do not power the IRON to check connectivity
+		if (--check_count == 0) {							// It is time to check IRON is connected or not
+			check_count	 = check_period;
+			min_iron_pwm = check_iron_pwm;
+		}
 		if (core.iron.isIronConnected()) {
 			uint16_t iron_power = core.iron.power(iron_temp);
 			TIM2->CCR1	= constrain(iron_power, min_iron_pwm, max_iron_pwm);
+
 		} else {
-			TIM2->CCR1	= min_iron_pwm;						// Always supply minimum power to the IRON to check connectivity
+			TIM2->CCR1	= min_iron_pwm;						// Sometimes supply minimum power to the IRON to check connectivity
 		}
 	} else if (adc_mode == ADC_CURRENT) {
 		uint32_t iron_curr	= 0;
-		for (uint8_t i = 0; i < 2*ADC_CONV; ++i) {
+		for (uint8_t i = 0; i < ADC_BUFF_SZ; i += 2*ADC_CONV) {
 			iron_curr	+= buff[i];
 		}
+		iron_curr	+= ADC_LOOPS/2;							// Round the result
+		iron_curr	/= ADC_LOOPS;
 
 		if (TIM2->CCR1)										// If IRON has been powered
 			core.iron.updateIronCurrent(iron_curr);
@@ -215,10 +212,4 @@ extern "C" void HAL_ADC_LevelOutOfWindowCallback(ADC_HandleTypeDef *hadc) 	{ }
 extern "C" void EXTI0_IRQHandler(void) {
 	core.encoder.encoderIntr();
 	__HAL_GPIO_EXTI_CLEAR_IT(ENCODER_L_Pin);
-}
-
-// Encoder button pressed
-extern "C" void EXTI1_IRQHandler(void) {
-	core.encoder.buttonIntr();
-	__HAL_GPIO_EXTI_CLEAR_IT(ENCODER_B_Pin);
 }

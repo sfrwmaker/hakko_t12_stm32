@@ -9,6 +9,20 @@
 #include <math.h>
 #include "mode.h"
 #include "tools.h"
+
+void SCRSAVER::reset(void) {
+	if (to > 0)
+		scr_save_ms = HAL_GetTick() + (uint32_t)to * 60000;
+	scr_saver = false;
+}
+
+bool SCRSAVER::scrSaver(void) {
+    if (scr_save_ms && !scr_saver && HAL_GetTick() >= scr_save_ms) {
+    	scr_saver = true;
+    }
+    return scr_saver;
+}
+
 //---------------------- The iron standby mode -----------------------------------
 void MSTBY_IRON::init(void) {
 	DSPL*	pD		= &pCore->dspl;
@@ -21,7 +35,7 @@ void MSTBY_IRON::init(void) {
 	bool		celsius 	= pCFG->isCelsius();
 	int16_t  	ambient		= pIron->ambientTemp();
 	uint16_t 	temp_setH	= pCFG->tempPresetHuman();
-	uint16_t 	temp_set	= pCFG->human2temp(temp_setH, ambient);
+	uint16_t 	temp_set	= pCFG->humanToTemp(temp_setH, ambient);
 	pIron->setTemp(temp_set);
 	pD->msgOFF();
 	pD->tip(pCFG->tipName());
@@ -36,6 +50,7 @@ void MSTBY_IRON::init(void) {
 	update_screen	= 0;									// Force to redraw the screen
 	clear_used_ms 	= 0;
 	used = !pIron->isCold();								// The IRON is in COOLING mode
+	SCRSAVER::init(pCFG->getScrTo());
 }
 
 MODE* MSTBY_IRON::loop(void) {
@@ -50,25 +65,36 @@ MODE* MSTBY_IRON::loop(void) {
     if (!pIron->isIronConnected())							// IRON is disconnected, Tip selection mode
     	return mode_return;
 
+    // In the Screen saver mode, any rotary encoder change should be ignored
+    if ((button || temp_set != old_temp_set) && scrSaver()) {
+    	button = 0;
+    	pEnc->write(old_temp_set);
+		SCRSAVER::reset();
+		update_screen = 0;
+	}
+
     if (button == 1) {										// The button pressed shortly
     	if (mode_spress) return mode_spress;
     } else if (button == 2) {								// The button was pressed for a long time
-    	BUZZER::shortBeep();
+    	pCore->buzz.shortBeep();
     	if (mode_lpress) return mode_lpress;
     }
 
+    bool scr_saver_reset = (button > 0);
     if (temp_set != old_temp_set) {							// Preset temperature changed
     	old_temp_set = temp_set;
+    	scr_saver_reset = true;
     	pCFG->savePresetTempHuman(temp_set);
     	update_screen = 0;									// Force to redraw the screen
     }
+    if (scr_saver_reset) SCRSAVER::reset();
 
     if (HAL_GetTick() < update_screen) return this;
     update_screen = HAL_GetTick() + 1000;
 
 	if (used && pIron->isCold()) {
     	pD->msgCold();
-		BUZZER::lowBeep();
+    	pCore->buzz.lowBeep();
 		clear_used_ms = HAL_GetTick() + 60000;
 		used = false;
 	}
@@ -80,10 +106,14 @@ MODE* MSTBY_IRON::loop(void) {
 
 	int16_t	 	ambient		= pIron->ambientTemp();
     uint16_t	temp  		= pIron->averageTemp();
-    uint16_t	tempH 		= pCFG->tempHuman(temp, ambient);
+    uint16_t	tempH 		= pCFG->tempToHuman(temp, ambient);
 	uint16_t	temp_setH	= pCFG->tempPresetHuman();
 
-    pD->mainShow(temp_setH, tempH, ambient, pIron->avgPowerPcnt(), pCFG->isCelsius(), pCFG->isTipCalibrated());
+	if (scrSaver()) {
+	    pD->scrSave(SCR_MODE_OFF, tempH);
+	} else {
+		pD->mainShow(temp_setH, tempH, ambient, pIron->avgPowerPcnt(), pCFG->isCelsius(), pCFG->isTipCalibrated());
+	}
     return this;
 }
 
@@ -97,7 +127,7 @@ void MWORK_IRON::init(void) {
 	bool 	 celsius	= pCFG->isCelsius();
 	int16_t  ambient	= pIron->ambientTemp();
 	uint16_t tempH  	= pCFG->tempPresetHuman();
-	preset_temp			= pCFG->human2temp(tempH, ambient);
+	preset_temp			= pCFG->humanToTemp(tempH, ambient);
 	uint16_t t_min		= pCFG->tempMinC();
 	uint16_t t_max		= pCFG->tempMaxC();
 	if (!celsius) {											// The preset temperature saved in selected units
@@ -117,6 +147,7 @@ void MWORK_IRON::init(void) {
 	old_temp_set 		= 0;
 	update_screen		= 0;
 	pIron->switchPower(true);
+	SCRSAVER::init(pCFG->getScrTo());
 }
 
 void MWORK_IRON::adjustPresetTemp(void) {
@@ -126,7 +157,7 @@ void MWORK_IRON::adjustPresetTemp(void) {
 	uint16_t presetTemp	= pIron->presetTemp();
 	uint16_t tempH     	= pCFG->tempPresetHuman();
 	int16_t  ambient	= pIron->ambientTemp();
-	uint16_t temp  		= pCFG->human2temp(tempH, ambient);	// Expected temperature of IRON in internal units
+	uint16_t temp  		= pCFG->humanToTemp(tempH, ambient); // Expected temperature of IRON in internal units
 	if (temp != presetTemp) {								// The ambient temperature have changed, we need to adjust preset temperature
 		pIron->adjust(temp);
 	}
@@ -203,6 +234,14 @@ MODE* MWORK_IRON::loop(void) {
 	int temp_setH 		= pEnc->read();						// The preset temperature in human readable units
 	uint8_t  button		= pEnc->buttonStatus();
 
+	// In the Screen saver mode, any rotary encoder change should be ignored
+	if ((button || temp_setH != old_temp_set) && scrSaver()) {
+	   	button = 0;
+	   	pEnc->write(old_temp_set);
+		SCRSAVER::reset();
+		update_screen = 0;
+	}
+
     if (button == 1) {										// The button pressed
         pCFG->saveConfig();
     	if (mode_spress)		return mode_spress;
@@ -212,6 +251,7 @@ MODE* MWORK_IRON::loop(void) {
     	}
     }
 
+    bool scr_saver_reset = (button > 0);
 	int16_t ambient	= pIron->ambientTemp();
 	if (temp_setH != old_temp_set) {						// Encoder rotated, new preset temp entered
 	   	old_temp_set 		= temp_setH;
@@ -220,12 +260,14 @@ MODE* MWORK_IRON::loop(void) {
 		auto_off_notified 	= false;
 		lowpower_mode		= false;
 		pD->msgON();
-		uint16_t temp = pCFG->human2temp(temp_setH, ambient); // Translate human readable temperature into internal value
+		uint16_t temp = pCFG->humanToTemp(temp_setH, ambient); // Translate human readable temperature into internal value
 		pIron->setTemp(temp);
 		pCFG->savePresetTempHuman(temp_setH);
 		idle_pwr.reset();									// Initialize the history for power in idle state
 		update_screen = 0;
+		scr_saver_reset 	= true;
 	}
+	if (scr_saver_reset) SCRSAVER::reset();
 
 	if (HAL_GetTick() < update_screen) 		return this;
     update_screen = HAL_GetTick() + period;
@@ -233,7 +275,7 @@ MODE* MWORK_IRON::loop(void) {
     int temp		= pIron->averageTemp();
 	int temp_set	= pIron->presetTemp();					// Now the preset temperature in internal units!!!
 	uint8_t p 		= pIron->avgPowerPcnt();
-	uint16_t tempH 	= pCFG->tempHuman(temp, ambient);
+	uint16_t tempH 	= pCFG->tempToHuman(temp, ambient);
 
 	uint32_t td		= pIron->tmpDispersion();				// The temperature dispersion
 	uint32_t pd 	= pIron->pwrDispersion();				// The power dispersion
@@ -251,7 +293,7 @@ MODE* MWORK_IRON::loop(void) {
 	    	ready = true;
 	    	ready_clear	= HAL_GetTick() + 2000;
 	    	pD->msgReady();
-	    	BUZZER::shortBeep();
+	    	pCore->buzz.shortBeep();
 	    	pD->mainShow(temp_setH, tempH, ambient, p, pCFG->isCelsius(), pCFG->isTipCalibrated(), tilt_active);
 	    	return this;
 	    }
@@ -271,7 +313,7 @@ MODE* MWORK_IRON::loop(void) {
 			if (to < 100) {
 				pD->timeToOff(to);
 				if (!auto_off_notified) {
-					BUZZER::shortBeep();
+					pCore->buzz.shortBeep();
 					auto_off_notified = true;
 				}
 			}
@@ -285,8 +327,11 @@ MODE* MWORK_IRON::loop(void) {
 		pD->msgON();
 	}
 
-	pD->mainShow(temp_setH, tempH, ambient, p, pCFG->isCelsius(), pCFG->isTipCalibrated(), tilt_active);
-	//pD->debugShow(temp-temp_set, td, pd, ip, ap);
+	if (scrSaver()) {
+		pD->scrSave(lowpower_mode?SCR_MODE_STBY:SCR_MODE_ON, tempH);
+	} else {
+		pD->mainShow(temp_setH, tempH, ambient, p, pCFG->isCelsius(), pCFG->isTipCalibrated(), tilt_active);
+	}
 	return this;
 }
 
@@ -300,12 +345,12 @@ void MBOOST::init(void) {
 	previous_temp		= temp_set;
 	bool celsius		= pCFG->isCelsius();
 	uint16_t ambient	= pIron->ambientTemp();
-	uint16_t tempH  	= pCFG->tempHuman(temp_set, ambient);
+	uint16_t tempH  	= pCFG->tempToHuman(temp_set, ambient);
 	uint16_t delta		= pCFG->boostTemp();				// The temperature increment in Celsius
 	if (!celsius)
 		delta = (delta * 9 + 3) / 5;
 	tempH			   += delta;
-	temp_set 			= pCFG->human2temp(tempH, ambient);
+	temp_set 			= pCFG->humanToTemp(tempH, ambient);
 	pIron->setTemp(temp_set);
 	pIron->switchPower(true);
 	time_to_return		= HAL_GetTick() + 30000;
@@ -333,9 +378,9 @@ MODE* MBOOST::loop(void) {
     uint16_t ambient= pIron->ambientTemp();
     int temp		= pIron->averageTemp();
 	uint8_t p 		= pIron->avgPowerPcnt();
-	uint16_t tempH 	= pCFG->tempHuman(temp, ambient);
+	uint16_t tempH 	= pCFG->tempToHuman(temp, ambient);
 	uint16_t tset	= pIron->presetTemp();
-	uint16_t tsetH  = pCFG->tempHuman(tset, ambient);
+	uint16_t tsetH  = pCFG->tempToHuman(tset, ambient);
 	pD->msgBoost();
 	pD->mainShow(tsetH, tempH, ambient, p, pCFG->isCelsius(), pCFG->isTipCalibrated());
 	return this;
@@ -503,9 +548,10 @@ void MMENU::init(void) {
 	low_to		= pCFG->getLowTO();
 	buzzer		= pCFG->isBuzzerEnabled();
 	celsius		= pCFG->isCelsius();
+	scr_saver	= pCFG->getScrTo();
 	set_param	= 0;
 	if (!pCFG->isTipCalibrated())
-		mode_menu_item	= 8;									// Select calibration menu item
+		mode_menu_item	= 9;									// Select calibration menu item
 	pEnc->reset(mode_menu_item, 0, m_len-1, 1, 1, true);
 	update_screen = 0;
 }
@@ -518,31 +564,33 @@ MODE* MMENU::loop(void) {
 	uint8_t item 		= pEnc->read();
 	uint8_t  button		= pEnc->buttonStatus();
 
-	if (button > 0) {											// Either short or long press
-		update_screen 	= 0;									// Force to redraw the screen
-	}
+	// Change the configuration parameters value in place
 	if (mode_menu_item != item) {
 		mode_menu_item = item;
 		switch (set_param) {
-			case 3:												// Setup auto off timeout
+			case 3:												// Setup of auto off timeout
 				if (item) {
 					off_timeout	= item + 2;
 				} else {
 					off_timeout = 0;
 				}
 				break;
-			case 4:												// Setup low power temperature
-				if (item) {
-					uint16_t min_st = min_standby_C;
-					if (!celsius)
-						min_st	= celsiusToFahrenheit(min_st);
-					low_temp	= item + min_st;
+			case 4:												// Setup of low power temperature
+				if (item >= min_standby_C) {
+					low_temp = item;
 				} else {
 					low_temp = 0;
 				}
 				break;
-			case 5:												// Setup low power timeout
+			case 5:												// Setup of low power timeout
 				low_to	= item;
+				break;
+			case 6:												// Setup of screen saver timeout
+				if (item) {
+					scr_saver = item + 2;
+				} else {
+					scr_saver = 0;
+				}
 				break;
 			default:
 				break;
@@ -550,23 +598,14 @@ MODE* MMENU::loop(void) {
 		update_screen = 0;										// Force to redraw the screen
 	}
 
-	if (HAL_GetTick() < update_screen) return this;
-	update_screen = HAL_GetTick() + 10000;
-
+	// Going through the main menu
 	if (!set_param) {
 		if (button > 0) {										// The button was pressed
 			switch (item) {
 				case 0:											// Boost parameters
-					pCFG->setup(off_timeout, buzzer, celsius, low_temp, low_to);
+					pCFG->setup(off_timeout, buzzer, celsius, low_temp, low_to, scr_saver);
 					return mode_menu_boost;
 				case 1:											// units C/F
-					if (low_temp) {
-						if (celsius) {
-							low_temp = celsiusToFahrenheit(low_temp);
-						} else {
-							low_temp = fahrenheitToCelsius(low_temp);
-						}
-					}
 					celsius	= !celsius;
 					break;
 				case 2:											// buzzer ON/OFF
@@ -583,42 +622,43 @@ MODE* MMENU::loop(void) {
 				case 4:											// Standby temperature
 					{
 					set_param = item;
-					uint16_t st		= low_temp;
-					uint16_t min_st = min_standby_C;
-					uint16_t max_st	= max_standby_C;
-					if (!celsius) {
-						min_st	= celsiusToFahrenheit(min_st);
-						max_st	= celsiusToFahrenheit(max_st);
-					}
-					if (st > min_st) st -=min_st;
-					pEnc->reset(st, 0, max_st, 1, 5, false);
+					pEnc->reset(low_temp, min_standby_C-1, max_standby_C, 1, 5, false);
 					break;
 					}
 				case 5:											// Standby timeout
 					set_param = item;
 					pEnc->reset(low_to, 5, 240, 1, 5, false);
 					break;
-				case 6:											// save
-					pCFG->setup(off_timeout, buzzer, celsius, low_temp, low_to);
+				case 6:											// Screen saver
+					{
+					set_param = item;
+					uint8_t to = scr_saver;
+					if (to > 2) to -=2;
+					pEnc->reset(to, 0, 58, 1, 5, false);
+					}
+					break;
+				case 7:											// save
+					pCFG->setup(off_timeout, buzzer, celsius, low_temp, low_to, scr_saver);
 					pCFG->saveConfig();
+					pCore->buzz.activate(buzzer);
 					mode_menu_item = 0;
 					return mode_return;
-				case 8:											// calibrate IRON tip
+				case 9:											// calibrate IRON tip
 					mode_menu_item = 8;
 					return mode_calibrate_menu;
-				case 9:											// activate tips
+				case 10:											// activate tips
 					mode_menu_item = 0;							// We will not return from tip activation mode to this menu
 					return mode_activate_tips;
-				case 10:										// tune the IRON potentiometer
+				case 11:										// tune the IRON potentiometer
 					mode_menu_item = 0;							// We will not return from tune mode to this menu
 					return mode_tune;
-				case 11:										// Initialize the configuration
+				case 12:										// Initialize the configuration
 					pCFG->initConfigArea();
 					mode_menu_item = 0;							// We will not return from tune mode to this menu
 					return mode_return;
-				case 12:										// Tune PID
+				case 13:										// Tune PID
 					return mode_tune_pid;
-				case 13:										// About dialog
+				case 14:										// About dialog
 					mode_menu_item = 0;
 					pD->showVersion();
 					HAL_Delay(10000);
@@ -638,13 +678,23 @@ MODE* MMENU::loop(void) {
 		}
 	}
 
-	char item_value[8];
-	item_value[1] = '\0';
+
+	// Prepare to modify menu item
 	bool modify = false;
-	if (set_param >= 3 && set_param <= 5) {
+	if (set_param >= 3 && set_param <= 6) {
 		item = set_param;
 		modify 	= true;
 	}
+
+	if (button > 0) {											// Either short or long press
+		update_screen 	= 0;									// Force to redraw the screen
+	}
+	if (HAL_GetTick() < update_screen) return this;
+	update_screen = HAL_GetTick() + 10000;
+
+	// Build current menu item value
+	char item_value[10];
+	item_value[1] = '\0';
 	switch (item) {
 		case 1:													// units: C/F
 			item_value[0] = 'F';
@@ -666,9 +716,11 @@ MODE* MMENU::loop(void) {
 			break;
 		case 4:													// Standby temperature
 			if (low_temp) {
-				sprintf(item_value, "%3d F", low_temp);
-				if (celsius)
-					item_value[4] = 'C';
+				if (celsius) {
+					sprintf(item_value, "%3d C", low_temp);
+				} else {
+					sprintf(item_value, "%3d F", celsiusToFahrenheit(low_temp));
+				}
 			} else {
 				sprintf(item_value, "OFF");
 			}
@@ -678,6 +730,13 @@ MODE* MMENU::loop(void) {
 				sprintf(item_value, "%3d s", low_to);
 			else
 				sprintf(item_value, "OFF");
+			break;
+		case 6:													// Screen saver timeout
+			if (scr_saver) {
+				sprintf(item_value, "%2d min", scr_saver);
+			} else {
+				sprintf(item_value, "OFF");
+			}
 			break;
 		default:
 			item_value[0] = '\0';
@@ -894,11 +953,6 @@ MODE* MCALIB::loop(void) {
     	update_screen = 0;
     }
 
-	if (!pIron->isIronConnected()) {
-		PIDparam pp = pCFG->pidParams();						// Restore default PID parameters
-		pIron->PID::load(pp);
-		return 0;												// Report an ERROR
-	}
 
 	if (button == 1) {											// The button pressed
 		if (tuning) {											// New reference temperature was entered
@@ -958,7 +1012,7 @@ MODE* MCALIB::loop(void) {
 	uint16_t temp_set	= pIron->presetTemp();
 	uint16_t temp 		= pIron->averageTemp();
 	uint8_t  power		= pIron->avgPowerPcnt();
-	uint16_t tempH 		= pCFG->tempHuman(temp, ambient);
+	uint16_t tempH 		= pCFG->tempToHuman(temp, ambient);
 
 	if (temp >= int_temp_max) {									// Prevent soldering IRON overheat, save current calibration
 		buildFinishCalibration();
@@ -969,23 +1023,16 @@ MODE* MCALIB::loop(void) {
 
 	if (tuning && (abs(temp_set - temp) <= 16) && (pIron->pwrDispersion() <= 200) && power > 1)  {
 		if (!ready) {
-			BUZZER::shortBeep();
+			pCore->buzz.shortBeep();
 			pEnc->write(tempH);
 			ready = true;
 	    }
 	}
 
-	// Calculate reference temperature, adjusted by 10 degrees
-	uint16_t ref_temp = map(ref_temp_index, 0, MCALIB_POINTS, pCFG->tempMinC(), pCFG->tempMaxC());
-	if (!pCFG->isCelsius())										// Convert to the Fahrenheit if required
-		ref_temp = celsiusToFahrenheit(ref_temp);
-	ref_temp += 4;
-	ref_temp -= ref_temp % 10;
-
 	uint8_t	int_temp_pcnt = 0;
 	if (temp >= start_int_temp)
 		int_temp_pcnt = map(temp, start_int_temp, int_temp_max, 0, 100);	// int_temp_max defined in vars.cpp
-	pD->calibShow(pCFG->tipName(), ref_temp, tempH, real_temp, pCFG->isCelsius(), power, tuning, ready, int_temp_pcnt);
+	pD->calibShow(pCFG->tipName(), ref_temp_index+1, tempH, real_temp, pCFG->isCelsius(), power, tuning, ready, int_temp_pcnt);
 	return this;
 }
 
@@ -1060,11 +1107,6 @@ MODE* MCALIB_MANUAL::loop(void) {
     }
 
 	int16_t ambient = pIron->ambientTemp();
-    if (!pIron->isIronConnected()) {
-    	PIDparam pp = pCFG->pidParams();
-    	pIron->PID::load(pp);
-    	return 0;
-    }
 
 	if (button == 1) {											// The button pressed
 		if (tuning) {											// New reference temperature was confirmed
@@ -1089,7 +1131,7 @@ MODE* MCALIB_MANUAL::loop(void) {
 			ref_temp_index 	= encoder;
 			tuning 			= true;
 			uint16_t tempH 	= pCFG->referenceTemp(encoder);		// Read the preset temperature from encoder
-			uint16_t temp 	= pCFG->human2temp(tempH, ambient);	// Calculate internal temperature using current calibtarion
+			uint16_t temp 	= pCFG->humanToTemp(tempH, ambient);	// Calculate internal temperature using current calibration
 			temp			= constrain(temp, 0, int_temp_max);	// Prevent overheating
 			pEnc->reset(temp, 100, int_temp_max, 5, 20, false); // int_temp_max declared in vars.cpp
 			pIron->setTemp(temp);
@@ -1125,7 +1167,7 @@ MODE* MCALIB_MANUAL::loop(void) {
 	pwr_disp		= pIron->pwrDispersion();
 	if (tuning && (abs(temp_set - temp) <= 16) && (pwr_disp <= pwr_disp_max) && power > 1)  {
 		if (!ready && temp_setready_ms && (HAL_GetTick() > temp_setready_ms)) {
-			BUZZER::shortBeep();
+			pCore->buzz.shortBeep();
 			ready 				= true;
 			temp_setready_ms	= 0;
 	    }
@@ -1134,7 +1176,7 @@ MODE* MCALIB_MANUAL::loop(void) {
 	uint16_t temp_setup = temp_set;
 	if (!tuning) {
 		uint16_t tempH 	= pCFG->referenceTemp(encoder);
-		temp_setup 		= pCFG->human2temp(tempH, ambient);
+		temp_setup 		= pCFG->humanToTemp(tempH, ambient);
 	}
 
 	pCore->dspl.calibManualShow(pCFG->tipName(), pCFG->referenceTemp(rt_index), temp, temp_setup,
@@ -1147,7 +1189,7 @@ void MMBST::init(void) {
 	CFG*	pCFG	= &pCore->cfg;
 	RENC*	pEnc	= &pCore->encoder;
 
-	delta_temp	= pCFG->boostTemp();							// The boost temp is in the internal units
+	delta_temp	= pCFG->boostTemp();							// The boost temperature is in the internal units
 	duration	= pCFG->boostDuration();
 	mode		= 0;
 	pEnc->reset(0, 0, 2, 1, 1, true);
@@ -1175,18 +1217,10 @@ MODE* MMBST::loop(void) {
 		old_item = item;
 		switch (mode) {
 			case 1:												// New temperature increment
-				if (item) {
-					delta_temp	= item + 4;
-				} else {
-					delta_temp	= 0;
-				}
+				delta_temp	= item;
 				break;
 			case 2:												// New duration period
-				if (item) {
-					duration	= item + 9;
-				} else {
-					duration	= 0;
-				}
+				duration	= item;
 				break;
 		}
 		update_screen = 0;										// Force to redraw the screen
@@ -1201,9 +1235,7 @@ MODE* MMBST::loop(void) {
 				case 0:											// delta temp
 					{
 					mode 	= 1;
-					uint8_t delta_t = delta_temp;
-					if (delta_t > 4) delta_t -= 4;
-					pEnc->reset(delta_t, 0, 30, 1, 5, false);
+					pEnc->reset(delta_temp, 0, 75, 5, 20, false);
 					break;
 					}
 				case 1:											// duration
@@ -1211,7 +1243,7 @@ MODE* MMBST::loop(void) {
 					mode 	= 2;
 					uint8_t dur	= duration;
 					if (dur > 9) dur -= 9;
-					pEnc->reset(dur, 0, 90, 1, 5, false);
+					pEnc->reset(dur, 0, 80, 5, 20, false);
 					break;
 					}
 				case 2:											// save
@@ -1229,13 +1261,14 @@ MODE* MMBST::loop(void) {
 		}
 	}
 
+	// Show current menu item
 	char item_value[8];
 	item_value[1] = '\0';
 	if (mode) {
 		item = mode - 1;
 	}
 	switch (item) {
-		case 0:													// delta temp
+		case 0:													// delta temperature
 			if (delta_temp) {
 				uint16_t delta_t = delta_temp;
 				char sym = 'C';
@@ -1293,7 +1326,9 @@ MODE* MTUNE::loop(void) {
 	if (button == 1) {											// The button pressed
 		powered = !powered;
 	    if (powered) pD->msgON(); else pD->msgOFF();
+	    update_screen = 0;
 	} else if (button == 2) {									// The button was pressed for a long time
+		pCore->buzz.shortBeep();
 	    return mode_lpress;
 	}
 
@@ -1304,6 +1339,9 @@ MODE* MTUNE::loop(void) {
     	old_power = power;
     }
 
+	if (HAL_GetTick() < update_screen) return this;
+	update_screen = HAL_GetTick() + 500;
+
     uint16_t tune_temp = iron_temp_maxC;
     uint16_t temp		= 0;
     uint8_t	 p_pcnt		= 0;
@@ -1311,7 +1349,6 @@ MODE* MTUNE::loop(void) {
 	p_pcnt		= pIron->avgPowerPcnt();
 
     pD->tuneShow(tune_temp, temp, p_pcnt);
-    HAL_Delay(500);
     return this;
 }
 
@@ -1370,7 +1407,7 @@ MODE* MTPID::loop(void) {
 			on = !on;
 			pIron->switchPower(on);
 			if (on) pD->pidInit();							// Reset display graph history
-			BUZZER::shortBeep();
+			pCore->buzz.shortBeep();
 		}
 
 		if (old_index != index) {
@@ -1480,7 +1517,7 @@ MODE* MAUTOPID::loop(void) {
 				base_pwr	= ap + (ap+5)/10;					// 10% more
 				pIron->fixPower(base_pwr);						// Apply base power
 				pD->autoPidInfo("Base pwr");
-				BUZZER::shortBeep();
+				pCore->buzz.shortBeep();
 				next_mode = HAL_GetTick() + 60000;				// Wait before go to supply fixed power
 			}
 			break;
@@ -1492,7 +1529,7 @@ MODE* MAUTOPID::loop(void) {
 				pD->pidInit();									// Redraw graph, because base temp has been changed!
 				pD->autoPidInfo("pwr plus");
 				pIron->fixPower(base_pwr + delta_power);
-				BUZZER::shortBeep();
+				pCore->buzz.shortBeep();
 				next_mode = HAL_GetTick() + 20000;				// Wait to change the temperature accordingly
 			}
 			break;
@@ -1503,7 +1540,7 @@ MODE* MAUTOPID::loop(void) {
 				if (delta_temp > max_delta_temp) delta_temp = max_delta_temp;
 				pD->autoPidInfo("pwr minus");
 				pIron->fixPower(base_pwr - delta_power);
-				BUZZER::shortBeep();
+				pCore->buzz.shortBeep();
 				next_mode = HAL_GetTick() + 60000;				// Wait to change the temperature accordingly
 			}
 			break;
@@ -1514,7 +1551,7 @@ MODE* MAUTOPID::loop(void) {
 				uint16_t delta = base_temp - temp;
 				if (delta < delta_temp) delta_temp = delta;		// delta_temp is minimum of upper and lower differences
 				pIron->autoTunePID(base_pwr, delta_power, base_temp, delta_temp);
-				BUZZER::doubleBeep();
+				pCore->buzz.doubleBeep();
 				pD->autoPidInfo("start");
 			}
 			break;
@@ -1555,7 +1592,7 @@ bool MAUTOPID::updatePID(void) {
 	int32_t diff	= alpha*alpha - delta_temp*delta_temp;
 	if (diff > 0) {
 		pIron->newPIDparams(delta_power, diff, pIron->autoTunePeriod());
-		BUZZER::shortBeep();
+		pCore->buzz.shortBeep();
 		return true;
 	}
 	return false;
@@ -1565,7 +1602,7 @@ bool MAUTOPID::updatePID(void) {
 void MFAIL::init(void) {
 	RENC*	pEnc	= &pCore->encoder;
 	pEnc->reset(0, 0, 1, 1, 1, false);
-	BUZZER::failedBeep();
+	pCore->buzz.failedBeep();
 	update_screen = 0;
 }
 
@@ -1583,3 +1620,33 @@ MODE* MFAIL::loop(void) {
 	pD->errorShow();
 	return this;
 }
+
+//---------------------- The Debug mode: display internal parameters ------------
+void MDEBUG::init(void) {
+	pCore->encoder.reset(0, 0, max_iron_power, 1, 5, false);
+	update_screen = 0;
+}
+
+MODE* MDEBUG::loop(void) {
+	DSPL*	pD		= &pCore->dspl;
+	IRON*	pIron	= &pCore->iron;
+
+	uint16_t pwr 	= pCore->encoder.read();
+	if (pwr != old_power) {
+		old_power = pwr;
+		update_screen = 0;
+		pIron->fixPower(pwr);
+	}
+	if (HAL_GetTick() < update_screen) return this;
+	update_screen = HAL_GetTick() + 500;
+
+	uint16_t data[5];
+	data[0]		= pIron->temp();
+	data[1] 	= pIron->ironCurrent();
+	data[2]		= pIron->ambientTemp();
+	data[3]		= pIron->isIronConnected();
+	data[4] 	= pIron->isIronTiltSwitch();
+	pD->debugShow(pwr, data);
+	return this;
+}
+

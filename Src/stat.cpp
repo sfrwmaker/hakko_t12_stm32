@@ -5,7 +5,8 @@
  *      Author: Alex
  */
 
-#include <stat.h>
+#include "stat.h"
+#include "tools.h"
 
 int32_t EMP_AVERAGE::average(int32_t value) {
 	uint8_t round_v = emp_k >> 1;
@@ -82,7 +83,8 @@ bool SWITCH::status(void) {
 }
 
 void SWITCH::update(uint16_t value) {
-	uint16_t max_val = on_val + (on_val >> 1);
-	if (value > max_val) value = max_val;
+	uint16_t max_val = on_val  + (on_val  >> 1);
+	uint16_t min_val = off_val - (off_val >> 1);
+	value = constrain(value, min_val, max_val);
 	EMP_AVERAGE::update(value);
 }
