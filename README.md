@@ -8,9 +8,13 @@ Revision history
 01/15/2020
  - Now tip activation menu is avalable in tip selection mode, you need long press the encoder
  - Debug verion is avaliable. In this firmware the internal information is shown on the display as following:
+ 
    P     T
+   
          C
+         
    (i-t) A,
+   
    where
    P - is the applied power (rotate the encoder to change this value)
    T - is the IRON temperature
