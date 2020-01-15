@@ -5,6 +5,20 @@ Project page: https://www.hackster.io/sfrwmaker/soldering-iron-controller-for-ha
 
 Revision history
 
+01/15/2020
+ - Now tip activation menu is avalable in tip selection mode, you need long press the encoder
+ - Debug verion is avaliable. In this firmware the internal information is shown on the display as following:
+   P     T
+         C
+   (i-t) A,
+   where
+   P - is the applied power (rotate the encoder to change this value)
+   T - is the IRON temperature
+   C - is the current through the IRON
+   A - is the ambient temperature
+   "i" means the controller assumes the IRON is connected
+   "t" means the tilt switch is active (IRON is in use)
+
 01/11/2020
  - The schematics changed
  - Buzzer is always on issue fixed
