@@ -5,6 +5,26 @@ Project page: https://www.hackster.io/sfrwmaker/soldering-iron-controller-for-ha
 
 Revision history
 
+04/18/2020
+ - Tip activation menu available in tip selection mode by short press the encoder
+ - Main menu is accessible in tip selection mode by long press the encoder
+ - Two modes hardware switch supported: REED and TILT. Tilt switch algorithm updated.
+ - Ambient temperature and tilt switch readings now are available on debug screen.
+ - Debug mode available in about dialog by long press of encoder, no extrafirmware required.
+   The internal information is shown on the display as following:
+   P     T
+         C      
+   (i-t) A
+         t,
+   where
+   P - is the applied power (rotate the encoder to change this value)
+   T - is the IRON temperature
+   C - is the current through the IRON
+   A - is the ambient temperature in internal units, should be near 2048 for 25 Celsius 
+   "i" means the controller assumes the IRON is connected
+   "t" means the tilt switch is active (IRON is in use)
+ 
+
 01/15/2020
  - Now tip activation menu is avalable in tip selection mode, you need long press the encoder
  - Debug verion is avaliable. In this firmware the internal information is shown on the display as following:
