@@ -839,18 +839,18 @@ void DSPL::errorMessage(const char *msg) {
 	}
 }
 
-void DSPL::debugShow(uint16_t power, uint16_t data[5]) {
+void DSPL::debugShow(uint16_t power, bool iron, bool tilt, uint16_t data[4]) {
 	char buff[14];
 
 	U8G2::setFont(u8g_font_profont15r);
 	U8G2::clearBuffer();
 	sprintf(buff, "%5d", power);
 	U8G2::drawStr(0,  30, buff);
-	for (uint8_t i = 0; i < 3; ++i) {
+	for (uint8_t i = 0; i < 4; ++i) {
 		sprintf(buff, "%5d", data[i]);
 		U8G2::drawStr(60,  15*(i+1), buff);
 	}
-	sprintf(buff, "(%c-%c)", data[3]>0?'i':' ', data[4]>0?'t':' ');
+	sprintf(buff, "(%c-%c)", iron?'i':' ', tilt?'t':' ');
 	U8G2::drawStr(5,  60, buff);
 	U8G2::sendBuffer();
 }

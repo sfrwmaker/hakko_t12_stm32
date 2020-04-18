@@ -448,7 +448,7 @@ void CFG_CORE::correctConfig(RECORD *cfg) {
 }
 
 // Apply main configuration parameters: automatic off timeout, buzzer and temperature units
-void CFG_CORE::setup(uint8_t off_timeout, bool buzzer, bool celsius, uint16_t low_temp, uint8_t low_to, uint8_t scr_saver) {
+void CFG_CORE::setup(uint8_t off_timeout, bool buzzer, bool celsius, bool reed, uint16_t low_temp, uint8_t low_to, uint8_t scr_saver) {
 	bool cfg_celsius		= a_cfg.bit_mask & CFG_CELSIUS;
 	a_cfg.off_timeout		= off_timeout;
 	a_cfg.scr_save_timeout	= scr_saver;
@@ -465,6 +465,7 @@ void CFG_CORE::setup(uint8_t off_timeout, bool buzzer, bool celsius, uint16_t lo
 	a_cfg.bit_mask	= 0;
 	if (celsius)	a_cfg.bit_mask |= CFG_CELSIUS;
 	if (buzzer)		a_cfg.bit_mask |= CFG_BUZZER;
+	if (reed)		a_cfg.bit_mask |= CFG_SWITCH;
 }
 
 uint8_t CFG_CORE::currentTipIndex(void) {

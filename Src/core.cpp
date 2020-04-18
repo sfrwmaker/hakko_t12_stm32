@@ -46,7 +46,8 @@ static	MFAIL			fail(&core);
 static	MMBST			boost_setup(&core);
 static	MTPID			pid_tune(&core);
 static	MAUTOPID		auto_pid_tune(&core);
-static	MMENU			main_menu(&core, &boost_setup, &calib_menu, &activate, &tune, &pid_tune);
+static  MABOUT			about(&core);
+static	MMENU			main_menu(&core, &boost_setup, &calib_menu, &activate, &tune, &pid_tune, &about);
 static	MDEBUG			debug(&core);
 static	MODE*           pMode = &standby_iron;
 
@@ -75,7 +76,7 @@ extern "C" void setup(void) {
 	standby_iron.setup(&select, &work_iron, &main_menu);
 	work_iron.setup(&standby_iron, &standby_iron, &boost);
 	boost.setup(&work_iron, &work_iron, &work_iron);
-	select.setup(&standby_iron, &activate, &standby_iron);
+	select.setup(&standby_iron, &activate, &main_menu);
 	activate.setup(&standby_iron, &standby_iron, &main_menu);
 	calib_auto.setup(&standby_iron, &standby_iron, &standby_iron);
 	calib_manual.setup(&calib_menu, &standby_iron, &standby_iron);
@@ -86,6 +87,8 @@ extern "C" void setup(void) {
 	pid_tune.setup(&standby_iron, &standby_iron, &standby_iron);
 	auto_pid_tune.setup(&standby_iron, &pid_tune, &standby_iron);
 	main_menu.setup(&standby_iron, &standby_iron, &standby_iron);
+	about.setup(&standby_iron, &standby_iron, &debug);
+    debug.setup(&standby_iron, &standby_iron, &standby_iron);
 
 	switch (cfg_init) {
 		case	CFG_NO_TIP:

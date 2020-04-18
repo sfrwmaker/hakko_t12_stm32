@@ -177,6 +177,7 @@ void MWORK_IRON::hwTimeout(uint16_t low_temp, bool tilt_active) {
 			lowpower_mode	= false;
 			ready 			= false;
 			time_to_return	= 0;							// Disable to return to the POWER OFF mode
+			pCore->buzz.shortBeep();
 			pD->msgON();
 		}
 	} else if (!lowpower_mode) {
@@ -285,7 +286,8 @@ MODE* MWORK_IRON::loop(void) {
 
 	uint16_t low_temp = pCFG->getLowTemp();					// 'Standby temperature' setup in the main menu
 	bool tilt_active = false;
-	if (low_temp) tilt_active = pIron->isIronTiltSwitch();	// True if iron is in upright position
+	if (low_temp)
+		tilt_active = pIron->isIronTiltSwitch(pCFG->isReedType());	// True if iron is in use
 
 	// Check the IRON reaches the preset temperature
 	if ((abs(temp_set - temp) < 6) && (td <= 500) && (ap > 0))  {
@@ -531,12 +533,13 @@ void MODE::setTimeout(uint16_t t) {
 }
 
 //---------------------- The Menu mode -------------------------------------------
-MMENU::MMENU(HW* pCore, MODE* m_boost, MODE* m_calib, MODE* m_act, MODE* m_tune, MODE* m_pid) : MODE(pCore) {
+MMENU::MMENU(HW* pCore, MODE* m_boost, MODE* m_calib, MODE* m_act, MODE* m_tune, MODE* m_pid, MODE* m_about) : MODE(pCore) {
 	mode_menu_boost		= m_boost;
 	mode_calibrate_menu	= m_calib;
 	mode_activate_tips	= m_act;
 	mode_tune			= m_tune;
 	mode_tune_pid		= m_pid;
+	mode_about			= m_about;
 }
 
 void MMENU::init(void) {
@@ -548,10 +551,11 @@ void MMENU::init(void) {
 	low_to		= pCFG->getLowTO();
 	buzzer		= pCFG->isBuzzerEnabled();
 	celsius		= pCFG->isCelsius();
+	reed		= pCFG->isReedType();
 	scr_saver	= pCFG->getScrTo();
 	set_param	= 0;
 	if (!pCFG->isTipCalibrated())
-		mode_menu_item	= 9;									// Select calibration menu item
+		mode_menu_item	= 10;									// Select calibration menu item
 	pEnc->reset(mode_menu_item, 0, m_len-1, 1, 1, true);
 	update_screen = 0;
 }
@@ -568,24 +572,24 @@ MODE* MMENU::loop(void) {
 	if (mode_menu_item != item) {
 		mode_menu_item = item;
 		switch (set_param) {
-			case 3:												// Setup of auto off timeout
+			case 4:												// Setup of auto off timeout
 				if (item) {
 					off_timeout	= item + 2;
 				} else {
 					off_timeout = 0;
 				}
 				break;
-			case 4:												// Setup of low power temperature
+			case 5:												// Setup of low power temperature
 				if (item >= min_standby_C) {
 					low_temp = item;
 				} else {
 					low_temp = 0;
 				}
 				break;
-			case 5:												// Setup of low power timeout
+			case 6:												// Setup of low power timeout
 				low_to	= item;
 				break;
-			case 6:												// Setup of screen saver timeout
+			case 7:												// Setup of screen saver timeout
 				if (item) {
 					scr_saver = item + 2;
 				} else {
@@ -603,7 +607,7 @@ MODE* MMENU::loop(void) {
 		if (button > 0) {										// The button was pressed
 			switch (item) {
 				case 0:											// Boost parameters
-					pCFG->setup(off_timeout, buzzer, celsius, low_temp, low_to, scr_saver);
+					pCFG->setup(off_timeout, buzzer, celsius, reed, low_temp, low_to, scr_saver);
 					return mode_menu_boost;
 				case 1:											// units C/F
 					celsius	= !celsius;
@@ -611,7 +615,10 @@ MODE* MMENU::loop(void) {
 				case 2:											// buzzer ON/OFF
 					buzzer	= !buzzer;
 					break;
-				case 3:											// auto off timeout
+				case 3:											// Switch type
+					reed	= !reed;
+					break;
+				case 4:											// auto off timeout
 					{
 					set_param = item;
 					uint8_t to = off_timeout;
@@ -619,17 +626,17 @@ MODE* MMENU::loop(void) {
 					pEnc->reset(to, 0, 28, 1, 5, false);
 					break;
 					}
-				case 4:											// Standby temperature
+				case 5:											// Standby temperature
 					{
 					set_param = item;
 					pEnc->reset(low_temp, min_standby_C-1, max_standby_C, 1, 5, false);
 					break;
 					}
-				case 5:											// Standby timeout
+				case 6:											// Standby timeout
 					set_param = item;
 					pEnc->reset(low_to, 5, 240, 1, 5, false);
 					break;
-				case 6:											// Screen saver
+				case 7:											// Screen saver
 					{
 					set_param = item;
 					uint8_t to = scr_saver;
@@ -637,32 +644,30 @@ MODE* MMENU::loop(void) {
 					pEnc->reset(to, 0, 58, 1, 5, false);
 					}
 					break;
-				case 7:											// save
-					pCFG->setup(off_timeout, buzzer, celsius, low_temp, low_to, scr_saver);
+				case 8:											// save
+					pCFG->setup(off_timeout, buzzer, celsius, reed, low_temp, low_to, scr_saver);
 					pCFG->saveConfig();
 					pCore->buzz.activate(buzzer);
 					mode_menu_item = 0;
 					return mode_return;
-				case 9:											// calibrate IRON tip
+				case 10:										// calibrate IRON tip
 					mode_menu_item = 8;
 					return mode_calibrate_menu;
-				case 10:											// activate tips
+				case 11:											// activate tips
 					mode_menu_item = 0;							// We will not return from tip activation mode to this menu
 					return mode_activate_tips;
-				case 11:										// tune the IRON potentiometer
+				case 12:										// tune the IRON potentiometer
 					mode_menu_item = 0;							// We will not return from tune mode to this menu
 					return mode_tune;
-				case 12:										// Initialize the configuration
+				case 13:										// Initialize the configuration
 					pCFG->initConfigArea();
 					mode_menu_item = 0;							// We will not return from tune mode to this menu
 					return mode_return;
-				case 13:										// Tune PID
+				case 14:										// Tune PID
 					return mode_tune_pid;
-				case 14:										// About dialog
+				case 15:										// About dialog
 					mode_menu_item = 0;
-					pD->showVersion();
-					HAL_Delay(10000);
-					return mode_return;
+					return mode_about;
 				default:										// cancel
 					pCFG->restoreConfig();
 					mode_menu_item = 0;
@@ -681,7 +686,7 @@ MODE* MMENU::loop(void) {
 
 	// Prepare to modify menu item
 	bool modify = false;
-	if (set_param >= 3 && set_param <= 6) {
+	if (set_param >= 4 && set_param <= 7) {
 		item = set_param;
 		modify 	= true;
 	}
@@ -707,14 +712,20 @@ MODE* MMENU::loop(void) {
 			else
 				sprintf(item_value, "OFF");
 			break;
-		case 3:													// auto off timeout
+		case 3:													// Switch type
+			if (reed)
+				sprintf(item_value, "REED");
+			else
+				sprintf(item_value, "TILT");
+			break;
+		case 4:													// auto off timeout
 			if (off_timeout) {
 				sprintf(item_value, "%2d min", off_timeout);
 			} else {
 				sprintf(item_value, "OFF");
 			}
 			break;
-		case 4:													// Standby temperature
+		case 5:													// Standby temperature
 			if (low_temp) {
 				if (celsius) {
 					sprintf(item_value, "%3d C", low_temp);
@@ -725,13 +736,13 @@ MODE* MMENU::loop(void) {
 				sprintf(item_value, "OFF");
 			}
 			break;
-		case 5:													// Standby timeout
+		case 6:													// Standby timeout
 			if (low_temp)
 				sprintf(item_value, "%3d s", low_to);
 			else
 				sprintf(item_value, "OFF");
 			break;
-		case 6:													// Screen saver timeout
+		case 7:													// Screen saver timeout
 			if (scr_saver) {
 				sprintf(item_value, "%2d min", scr_saver);
 			} else {
@@ -1621,6 +1632,32 @@ MODE* MFAIL::loop(void) {
 	return this;
 }
 
+//---------------------- The About dialog mode. Show about message ---------------
+void MABOUT::init(void) {
+	RENC*	pEnc	= &pCore->encoder;
+	pEnc->reset(0, 0, 1, 1, 1, false);
+	setTimeout(20);												// Show version for 20 seconds
+	resetTimeout();
+	update_screen = 0;
+}
+
+MODE* MABOUT::loop(void) {
+	DSPL*	pD		= &pCore->dspl;
+	RENC*	pEnc	= &pCore->encoder;
+	uint8_t b_status = pEnc->buttonStatus();
+	if (b_status == 1) {										// Short button press
+		return mode_return;										// Return to the main menu
+	} else if (b_status == 2) {
+		return mode_lpress;										// Activate debug mode
+	}
+
+	if (HAL_GetTick() < update_screen) return this;
+	update_screen = HAL_GetTick() + 60000;
+
+	pD->showVersion();
+	return this;
+}
+
 //---------------------- The Debug mode: display internal parameters ------------
 void MDEBUG::init(void) {
 	pCore->encoder.reset(0, 0, max_iron_power, 1, 5, false);
@@ -1637,16 +1674,20 @@ MODE* MDEBUG::loop(void) {
 		update_screen = 0;
 		pIron->fixPower(pwr);
 	}
+
+	if (pCore->encoder.buttonStatus() == 2) {					// The button was pressed for a long time
+	   	return mode_lpress;
+	}
+
 	if (HAL_GetTick() < update_screen) return this;
 	update_screen = HAL_GetTick() + 500;
 
 	uint16_t data[5];
 	data[0]		= pIron->temp();
 	data[1] 	= pIron->ironCurrent();
-	data[2]		= pIron->ambientTemp();
-	data[3]		= pIron->isIronConnected();
-	data[4] 	= pIron->isIronTiltSwitch();
-	pD->debugShow(pwr, data);
+	data[2]		= pIron->ambientInternal();
+	data[3]		= pIron->tiltInternal();
+	pD->debugShow(pwr, pIron->isIronConnected(), pIron->isIronTiltSwitch(), data);
 	return this;
 }
 
