@@ -27,6 +27,7 @@ class CFG_CORE: public TIPS {
 		CFG_CORE(void)									{ }
 		bool		isCelsius(void) 					{ return a_cfg.bit_mask & CFG_CELSIUS;	}
 		bool		isBuzzerEnabled(void)				{ return a_cfg.bit_mask & CFG_BUZZER; 	}
+		bool		isReedType(void)					{ return a_cfg.bit_mask & CFG_SWITCH;	}
 		uint16_t	tempPresetHuman(void) 				{ return a_cfg.temp;					}
 		uint8_t		getOffTimeout(void) 				{ return a_cfg.off_timeout; 			}
 		uint16_t	getLowTemp(void)					{ return a_cfg.low_temp; 				}
@@ -34,7 +35,7 @@ class CFG_CORE: public TIPS {
 		uint8_t		getScrTo(void)						{ return a_cfg.scr_save_timeout;		}
 		uint8_t		boostTemp(void);
 		uint8_t		boostDuration(void);
-		void		setup(uint8_t off_timeout, bool buzzer, bool celsius, uint16_t low_temp, uint8_t low_to, uint8_t scr_saver);
+		void		setup(uint8_t off_timeout, bool buzzer, bool celsius, bool reed, uint16_t low_temp, uint8_t low_to, uint8_t scr_saver);
 		uint8_t		currentTipIndex(void);
 		void 		savePresetTempHuman(uint16_t temp_set);
 		void		saveBoost(uint8_t temp, uint8_t duration);

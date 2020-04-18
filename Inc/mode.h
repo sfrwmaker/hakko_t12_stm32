@@ -124,7 +124,7 @@ class MTACT : public MODE {
 //---------------------- The Menu mode -------------------------------------------
 class MMENU : public MODE {
 	public:
-		MMENU(HW* pCore, MODE* m_boost, MODE* m_calib, MODE* m_act, MODE* m_tune, MODE* m_pid);
+		MMENU(HW* pCore, MODE* m_boost, MODE* m_calib, MODE* m_act, MODE* m_tune, MODE* m_pid, MODE* m_about);
 		virtual void	init(void);
 		virtual MODE*	loop(void);
 	private:
@@ -133,19 +133,22 @@ class MMENU : public MODE {
 		MODE*		mode_activate_tips;
 		MODE*		mode_tune;
 		MODE*		mode_tune_pid;
+		MODE*		mode_about;
 		uint8_t		off_timeout		= 0;					// Automatic switch off timeout (minutes or 0 to disable)
 		uint16_t	low_temp		= 0;					// The low power temperature (Celsius or Fahrenheit) 0 - disable tilt sensor
 		uint8_t		low_to			= 0;					// The low power timeout, seconds
 		uint8_t		scr_saver		= 0;					// Screen saver timeout in minutes or 0 to disable
 		bool		buzzer			= true;					// Whether the buzzer is enabled
 		bool		celsius			= true;					// Temperature units: C/F
+		bool		reed			= false;
 		uint8_t		set_param		= 0;					// The index of the modifying parameter
-		uint8_t		m_len			= 15;					// The menu length
+		uint8_t		m_len			= 16;					// The menu length
 		uint8_t		mode_menu_item 	= 1;					// Save active menu element index to return back later
-		const char* menu_name[15] = {
+		const char* menu_name[16] = {
 			"boost setup",
 			"units",
 			"buzzer",
+			"switch type",
 			"auto off",
 			"standby temp",
 			"standby time",
@@ -291,6 +294,14 @@ class MAUTOPID : public MODE {
 class MFAIL : public MODE {
 	public:
 		MFAIL(HW *pCore) : MODE(pCore)						{ }
+		virtual void	init(void);
+		virtual MODE*	loop(void);
+};
+
+//---------------------- The About dialog mode. Show about message ---------------
+class MABOUT : public MODE {
+	public:
+		MABOUT(HW *pCore) : MODE(pCore)						{ }
 		virtual void	init(void);
 		virtual MODE*	loop(void);
 };

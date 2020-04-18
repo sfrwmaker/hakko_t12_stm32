@@ -23,11 +23,13 @@ class IRON_HW {
 		void		updateIronCurrent(uint16_t value)		{ c_iron.update(value);							}
 		int32_t		tempShortAverage(int32_t t)				{ return t_iron_short.average(t);				}
 		void		resetShortTemp(void)					{ t_iron_short.reset();							}
+		uint16_t	ambientInternal(void)					{ return t_amb.read();							}
+		bool		tiltInternal(void)						{ return sw_iron.read();						}
 		void		checkSWStatus(void);
 		int32_t		ambientTemp(void);
-		bool		isIronVibroSwitch(void);				// True if the status of tilt switch has been changed
+		bool 		isIronTiltSwitch(bool reed);			// REED switch: TRUE if switch is shorten; else: TRUE if status has been changed
 	private:
-		bool		tilt_switch			= false;			// Tilt switch current status
+		bool		tilt_changed			= false;		// Tilt switch status changed
 		uint32_t	check_sw			= 0;				// Time when check tilt switch status (ms)
 		EMP_AVERAGE t_iron_short;							// Exponential average of the IRON temperature (short period)
 		EMP_AVERAGE t_amb;									// Exponential average of the ambient temperature
@@ -38,9 +40,9 @@ class IRON_HW {
 		const uint16_t	iron_off_value		= 500;
 		const uint16_t	iron_on_value		= 1000;
 		const uint8_t	iron_sw_len			= 3;			// Exponential coefficient of current through the IRON switch
-		const uint8_t	sw_off_value		= 30;
-		const uint8_t	sw_on_value			= 60;
-		const uint8_t	sw_avg_len			= 10;
+		const uint8_t	sw_off_value		= 14;
+		const uint8_t	sw_on_value			= 20;
+		const uint8_t	sw_avg_len			= 2;
 		const uint32_t	check_sw_period 	= 100;
 };
 
