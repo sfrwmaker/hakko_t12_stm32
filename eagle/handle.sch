@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE eagle SYSTEM "eagle.dtd">
-<eagle version="9.2.0">
+<eagle version="9.6.1">
 <drawing>
 <settings>
 <setting alwaysvectorfont="no"/>
@@ -469,19 +469,6 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <wire x1="-0.508" y1="-1.524" x2="0.508" y2="-1.524" width="0.254" layer="94"/>
 <text x="0" y="-1.778" size="1.778" layer="96" align="top-center">&gt;VALUE</text>
 </symbol>
-<symbol name="DGND">
-<description>&lt;h3&gt;Digital Ground Supply&lt;/h3&gt;</description>
-<wire x1="-1.905" y1="0" x2="1.905" y2="0" width="0.254" layer="94"/>
-<pin name="GND" x="0" y="2.54" visible="off" length="short" direction="sup" rot="R270"/>
-<text x="0" y="-0.254" size="1.778" layer="96" align="top-center">&gt;VALUE</text>
-</symbol>
-<symbol name="VCC">
-<description>&lt;h3&gt;VCC Voltage Supply&lt;/h3&gt;</description>
-<wire x1="0.762" y1="1.27" x2="0" y2="2.54" width="0.254" layer="94"/>
-<wire x1="0" y1="2.54" x2="-0.762" y2="1.27" width="0.254" layer="94"/>
-<pin name="VCC" x="0" y="0" visible="off" length="short" direction="sup" rot="R90"/>
-<text x="0" y="2.794" size="1.778" layer="96" align="bottom-center">&gt;VALUE</text>
-</symbol>
 </symbols>
 <devicesets>
 <deviceset name="GND2" prefix="GND">
@@ -498,11 +485,39 @@ You are welcome to use this library for commercial purposes. For attribution, we
 </device>
 </devices>
 </deviceset>
-<deviceset name="GND" prefix="GND">
-<description>&lt;h3&gt;Ground Supply Symbol&lt;/h3&gt;
-&lt;p&gt;Generic signal ground supply symbol.&lt;/p&gt;</description>
+</devicesets>
+</library>
+<library name="supply1" urn="urn:adsk.eagle:library:371">
+<description>&lt;b&gt;Supply Symbols&lt;/b&gt;&lt;p&gt;
+ GND, VCC, 0V, +5V, -5V, etc.&lt;p&gt;
+ Please keep in mind, that these devices are necessary for the
+ automatic wiring of the supply signals.&lt;p&gt;
+ The pin name defined in the symbol is identical to the net which is to be wired automatically.&lt;p&gt;
+ In this library the device names are the same as the pin names of the symbols, therefore the correct signal names appear next to the supply symbols in the schematic.&lt;p&gt;
+ &lt;author&gt;Created by librarian@cadsoft.de&lt;/author&gt;</description>
+<packages>
+</packages>
+<symbols>
+<symbol name="V-" urn="urn:adsk.eagle:symbol:26940/1" library_version="1">
+<wire x1="-0.889" y1="1.27" x2="0" y2="-0.127" width="0.254" layer="94"/>
+<wire x1="0" y1="-0.127" x2="0.889" y2="1.27" width="0.254" layer="94"/>
+<wire x1="-0.889" y1="1.27" x2="0.889" y2="1.27" width="0.254" layer="94"/>
+<text x="-5.08" y="2.54" size="1.778" layer="96" rot="R270">&gt;VALUE</text>
+<pin name="V-" x="0" y="2.54" visible="off" length="short" direction="sup" rot="R270"/>
+</symbol>
+<symbol name="V+" urn="urn:adsk.eagle:symbol:26939/1" library_version="1">
+<wire x1="0.889" y1="-1.27" x2="0" y2="0.127" width="0.254" layer="94"/>
+<wire x1="0" y1="0.127" x2="-0.889" y2="-1.27" width="0.254" layer="94"/>
+<wire x1="-0.889" y1="-1.27" x2="0.889" y2="-1.27" width="0.254" layer="94"/>
+<text x="-2.54" y="-2.54" size="1.778" layer="96" rot="R90">&gt;VALUE</text>
+<pin name="V+" x="0" y="-2.54" visible="off" length="short" direction="sup" rot="R90"/>
+</symbol>
+</symbols>
+<devicesets>
+<deviceset name="V-" urn="urn:adsk.eagle:component:26971/1" prefix="P-" library_version="1">
+<description>&lt;b&gt;SUPPLY SYMBOL&lt;/b&gt;</description>
 <gates>
-<gate name="1" symbol="DGND" x="0" y="0"/>
+<gate name="1" symbol="V-" x="0" y="0"/>
 </gates>
 <devices>
 <device name="">
@@ -512,11 +527,10 @@ You are welcome to use this library for commercial purposes. For attribution, we
 </device>
 </devices>
 </deviceset>
-<deviceset name="VCC" prefix="SUPPLY">
-<description>&lt;h3&gt;VCC Voltage Supply&lt;/h3&gt;
-&lt;p&gt;Positive voltage supply (traditionally for a BJT device, C=collector).&lt;/p&gt;</description>
+<deviceset name="V+" urn="urn:adsk.eagle:component:26966/1" prefix="P+" library_version="1">
+<description>&lt;b&gt;SUPPLY SYMBOL&lt;/b&gt;</description>
 <gates>
-<gate name="G$1" symbol="VCC" x="0" y="0"/>
+<gate name="1" symbol="V+" x="0" y="0"/>
 </gates>
 <devices>
 <device name="">
@@ -542,70 +556,44 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <part name="R13" library="discrete" library_urn="urn:adsk.eagle:library:211" deviceset="THERMISTOR_" device="R-5" package3d_urn="urn:adsk.eagle:package:12931/1" value="THERMISTOR"/>
 <part name="TILT" library="sensor-signalquest" deviceset="SQ-SEN-200" device="" value=""/>
 <part name="PE" library="SparkFun-PowerSymbols" deviceset="GND2" device="" value="PE"/>
-<part name="GND2" library="SparkFun-PowerSymbols" deviceset="GND" device=""/>
-<part name="SUPPLY1" library="SparkFun-PowerSymbols" deviceset="VCC" device="" value="+24v"/>
+<part name="P-1" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="V-" device=""/>
+<part name="P+1" library="supply1" library_urn="urn:adsk.eagle:library:371" deviceset="V+" device=""/>
 </parts>
 <sheets>
 <sheet>
 <plain>
 </plain>
 <instances>
-<instance part="IRON" gate="G$1" x="40.64" y="88.9" rot="R270">
+<instance part="IRON" gate="G$1" x="40.64" y="88.9" smashed="yes" rot="R270">
 <attribute name="VALUE" x="30.48" y="90.17" size="1.778" layer="96" rot="R270"/>
 <attribute name="NAME" x="38.862" y="92.71" size="1.778" layer="95"/>
 </instance>
-<instance part="R13" gate="G$1" x="50.8" y="68.58" rot="R90">
+<instance part="R13" gate="G$1" x="50.8" y="68.58" smashed="yes" rot="R90">
 <attribute name="NAME" x="46.99" y="66.04" size="1.778" layer="95" rot="R90"/>
 <attribute name="VALUE" x="54.61" y="63.5" size="1.778" layer="96" rot="R90"/>
 </instance>
-<instance part="TILT" gate="G$1" x="63.5" y="68.58">
+<instance part="TILT" gate="G$1" x="63.5" y="68.58" smashed="yes">
 <attribute name="NAME" x="68.58" y="71.12" size="1.778" layer="95"/>
 <attribute name="VALUE" x="68.58" y="63.5" size="1.778" layer="95"/>
 </instance>
-<instance part="PE" gate="G$1" x="40.64" y="73.66">
+<instance part="PE" gate="G$1" x="40.64" y="73.66" smashed="yes">
 <attribute name="VALUE" x="40.64" y="71.882" size="1.778" layer="96" align="top-center"/>
 </instance>
-<instance part="GND2" gate="1" x="35.56" y="53.34">
-<attribute name="VALUE" x="35.56" y="53.086" size="1.778" layer="96" align="top-center"/>
+<instance part="P-1" gate="1" x="35.56" y="53.34" smashed="yes">
+<attribute name="VALUE" x="38.1" y="53.34" size="1.778" layer="96"/>
 </instance>
-<instance part="SUPPLY1" gate="G$1" x="33.02" y="78.74" rot="R90">
-<attribute name="VALUE" x="27.686" y="78.74" size="1.778" layer="96" align="bottom-center"/>
+<instance part="P+1" gate="1" x="30.48" y="78.74" smashed="yes" rot="R90">
+<attribute name="VALUE" x="30.48" y="81.28" size="1.778" layer="96" rot="R180"/>
 </instance>
 </instances>
 <busses>
 </busses>
 <nets>
-<net name="VCC" class="0">
-<segment>
-<pinref part="IRON" gate="G$1" pin="1"/>
-<wire x1="35.56" y1="81.28" x2="35.56" y2="78.74" width="0.1524" layer="91"/>
-<pinref part="SUPPLY1" gate="G$1" pin="VCC"/>
-<wire x1="35.56" y1="78.74" x2="33.02" y2="78.74" width="0.1524" layer="91"/>
-</segment>
-</net>
 <net name="3.3V" class="0">
 <segment>
 <pinref part="IRON" gate="G$1" pin="3"/>
 <pinref part="PE" gate="G$1" pin="3.3V"/>
 <wire x1="40.64" y1="81.28" x2="40.64" y2="76.2" width="0.1524" layer="91"/>
-</segment>
-</net>
-<net name="GND" class="0">
-<segment>
-<pinref part="IRON" gate="G$1" pin="2"/>
-<wire x1="38.1" y1="81.28" x2="38.1" y2="76.2" width="0.1524" layer="91"/>
-<wire x1="38.1" y1="76.2" x2="35.56" y2="76.2" width="0.1524" layer="91"/>
-<pinref part="GND2" gate="1" pin="GND"/>
-<wire x1="35.56" y1="76.2" x2="35.56" y2="58.42" width="0.1524" layer="91"/>
-<pinref part="TILT" gate="G$1" pin="2"/>
-<wire x1="35.56" y1="58.42" x2="35.56" y2="55.88" width="0.1524" layer="91"/>
-<wire x1="63.5" y1="60.96" x2="63.5" y2="58.42" width="0.1524" layer="91"/>
-<wire x1="63.5" y1="58.42" x2="50.8" y2="58.42" width="0.1524" layer="91"/>
-<junction x="35.56" y="58.42"/>
-<pinref part="R13" gate="G$1" pin="2"/>
-<wire x1="50.8" y1="58.42" x2="35.56" y2="58.42" width="0.1524" layer="91"/>
-<wire x1="50.8" y1="63.5" x2="50.8" y2="58.42" width="0.1524" layer="91"/>
-<junction x="50.8" y="58.42"/>
 </segment>
 </net>
 <net name="N$2" class="0">
@@ -624,6 +612,32 @@ You are welcome to use this library for commercial purposes. For attribution, we
 <wire x1="63.5" y1="78.74" x2="45.72" y2="78.74" width="0.1524" layer="91"/>
 <pinref part="IRON" gate="G$1" pin="5"/>
 <wire x1="45.72" y1="78.74" x2="45.72" y2="81.28" width="0.1524" layer="91"/>
+</segment>
+</net>
+<net name="V-" class="0">
+<segment>
+<pinref part="IRON" gate="G$1" pin="2"/>
+<wire x1="38.1" y1="81.28" x2="38.1" y2="76.2" width="0.1524" layer="91"/>
+<wire x1="38.1" y1="76.2" x2="35.56" y2="76.2" width="0.1524" layer="91"/>
+<wire x1="35.56" y1="76.2" x2="35.56" y2="58.42" width="0.1524" layer="91"/>
+<pinref part="TILT" gate="G$1" pin="2"/>
+<wire x1="35.56" y1="58.42" x2="35.56" y2="55.88" width="0.1524" layer="91"/>
+<wire x1="63.5" y1="60.96" x2="63.5" y2="58.42" width="0.1524" layer="91"/>
+<wire x1="63.5" y1="58.42" x2="50.8" y2="58.42" width="0.1524" layer="91"/>
+<junction x="35.56" y="58.42"/>
+<pinref part="R13" gate="G$1" pin="2"/>
+<wire x1="50.8" y1="58.42" x2="35.56" y2="58.42" width="0.1524" layer="91"/>
+<wire x1="50.8" y1="63.5" x2="50.8" y2="58.42" width="0.1524" layer="91"/>
+<junction x="50.8" y="58.42"/>
+<pinref part="P-1" gate="1" pin="V-"/>
+</segment>
+</net>
+<net name="V+" class="0">
+<segment>
+<pinref part="IRON" gate="G$1" pin="1"/>
+<wire x1="35.56" y1="81.28" x2="35.56" y2="78.74" width="0.1524" layer="91"/>
+<wire x1="35.56" y1="78.74" x2="33.02" y2="78.74" width="0.1524" layer="91"/>
+<pinref part="P+1" gate="1" pin="V+"/>
 </segment>
 </net>
 </nets>
