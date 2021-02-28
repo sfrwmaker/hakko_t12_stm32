@@ -5,6 +5,9 @@ Project page: https://www.hackster.io/sfrwmaker/soldering-iron-controller-for-ha
 
 Revision history
 
+02/28/2021
+- Fixed issues in the handle connection schematics.
+
 04/18/2020
  - Tip activation menu available in tip selection mode by short press the encoder
  - Main menu is accessible in tip selection mode by long press the encoder
